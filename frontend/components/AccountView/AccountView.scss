@@ -1,0 +1,83 @@
+.account-view {
+  max-width: 480px;
+  margin: 2rem auto;
+  padding: 0 1rem;
+}
+
+.account-username {
+  color: var(--color-text-muted);
+}
+
+.account-logout {
+  font-family: var(--font-mono);
+  font-size: 0.9rem;
+  padding: 0.5rem 0.8rem;
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+  background: var(--color-bg-raised);
+  color: var(--color-text);
+  cursor: pointer;
+}
+
+.account-danger-zone {
+  margin-top: 2.5rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid var(--color-border);
+}
+
+.account-danger-zone h2 {
+  font-size: 1rem;
+  color: var(--color-danger);
+}
+
+.account-delete-start,
+.account-delete-confirm-btn {
+  font-family: var(--font-mono);
+  font-size: 0.9rem;
+  padding: 0.5rem 0.8rem;
+  border: 1px solid var(--color-danger);
+  border-radius: 4px;
+  background: none;
+  color: var(--color-danger);
+  cursor: pointer;
+}
+
+.account-delete-confirm p[role='alert'] {
+  color: var(--color-danger);
+  font-weight: 600;
+}
+
+.account-delete-actions {
+  display: flex;
+  gap: 0.75rem;
+}
+
+.account-delete-actions button {
+  font-family: var(--font-mono);
+  font-size: 0.9rem;
+  padding: 0.5rem 0.8rem;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.account-delete-actions button:first-child {
+  border: 1px solid var(--color-border);
+  background: var(--color-bg-raised);
+  color: var(--color-text);
+}
+
+.account-delete-confirm-btn {
+  border: 1px solid var(--color-danger);
+  background: var(--color-danger);
+  color: var(--color-accent-contrast);
+}
+
+.account-delete-actions button:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.account-error {
+  color: var(--color-danger);
+  font-size: 0.9rem;
+}

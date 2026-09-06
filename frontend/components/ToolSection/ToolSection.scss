@@ -1,0 +1,44 @@
+.tool-section {
+  padding: 1.5rem 0;
+  border-top: 1px solid var(--color-border);
+  scroll-margin-top: 1rem;
+}
+
+.tool-section h2 {
+  font-size: 1.15rem;
+}
+
+.tool-example {
+  background: var(--color-bg-raised);
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  padding: 0.6rem 0.8rem;
+  overflow-x: auto;
+}
+
+.tool-usecases {
+  color: var(--color-text-muted);
+}
+
+.tool-section-actions {
+  display: flex;
+  align-items: center;
+  gap: 1.25rem;
+  flex-wrap: wrap;
+}
+
+.tool-run-btn {
+  font-family: var(--font-mono);
+  background: var(--color-accent);
+  color: var(--color-accent-contrast);
+  border: none;
+  border-radius: 6px;
+  padding: 0.5rem 0.9rem;
+  cursor: pointer;
+}
+
+.tool-guide-link {
+  font-family: var(--font-mono);
+  color: var(--color-link);
+  text-decoration: none;
+}

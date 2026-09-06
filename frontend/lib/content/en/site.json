@@ -1,0 +1,202 @@
+{
+  "brand": "LinuxCLI",
+  "tagline": "A real Linux terminal in your browser — no install, no signup.",
+  "footer": "LinuxCLI — disposable, sandboxed network diagnostic tools in your browser.",
+  "nav": {
+    "home": "Home",
+    "tools": "Tools",
+    "commands": "Commands",
+    "changelog": "Changelog",
+    "about": "About"
+  },
+  "home": {
+    "heroTitle": "A real Linux terminal, right in your browser",
+    "heroSubtitle": "Run dig, whois, curl, ping and other read-only network diagnostic tools instantly — no install, no signup. Every session runs in a disposable, isolated sandbox that's destroyed right after your command finishes.",
+    "metaDescription": "Run dig, whois, curl, ping and other network diagnostic tools online in a disposable, sandboxed Linux terminal — no install, no signup.",
+    "ctaToolsLabel": "Browse all tools →",
+    "seoArticle": {
+      "title": "Network diagnostics from the command line: a practical guide",
+      "sections": [
+        {
+          "heading": "Why the terminal is still the fastest way to diagnose a network problem",
+          "body": "When a website won't load, an email bounces, or an API call times out, the browser's network tab only tells part of the story. A handful of small, single-purpose command-line tools — dig, whois, ping, mtr, curl, openssl s_client, and nc — can usually pinpoint the actual failure in under a minute, long before you'd finish opening a GUI network monitor. They're old, they're boring, and that's exactly why they're still the first thing a network engineer reaches for."
+        },
+        {
+          "heading": "DNS first: dig, host, and whois",
+          "body": "Most \"the site is down\" reports are actually DNS problems. dig example.com is the fastest way to see exactly what a resolver returns for a domain — its A/AAAA records, the authoritative name servers that answered, and the query time in milliseconds. Add a record type, like dig example.com MX or dig example.com TXT, to check mail routing or domain verification records without opening a control panel. host example.com gives the same core answer in a shorter, script-friendly format when the full dig response is more detail than you need. Once a domain resolves, whois example.com answers a different question — who registered it, when it expires, and which registrar or DNS provider is responsible — the tool for \"is this domain about to lapse\", not for troubleshooting connectivity itself."
+        },
+        {
+          "heading": "Is it slow, or is it actually down: ping and mtr",
+          "body": "ping sends ICMP echo requests and reports round-trip time and packet loss, the two numbers that separate \"the network is fine, the app is slow\" from \"packets are actually being dropped\". A few milliseconds and 0% loss usually means the problem sits above the network layer; sustained loss or wildly inconsistent latency points lower, into routing or a saturated link. mtr goes a step further, combining ping and traceroute into one continuously updating report that shows loss and latency at every hop between you and the destination, not just the two endpoints — so when ping shows loss, mtr is the natural next command, because it tells you whether the loss happens at your own edge, somewhere in the middle of the path, or right at the destination."
+        },
+        {
+          "heading": "Talking to the service directly: curl and openssl s_client",
+          "body": "ping and mtr operate below the application layer — they know nothing about HTTP or TLS. curl -I https://example.com fetches just the response headers: status code, redirect chain, caching headers, and server banner, without downloading the page body, which makes it the fastest way to tell a real 404 from a CDN edge serving a cached error, or to see a request bouncing through several redirects before it fails. When the problem might be certificate-related — an expired cert, a broken chain, or a TLS version mismatch — openssl s_client -connect example.com:443 opens a raw TLS connection and prints the full certificate chain, issuer, validity dates, and negotiated protocol version, answering whether the certificate is actually the problem before looking anywhere else."
+        },
+        {
+          "heading": "Checking a specific port: nc",
+          "body": "Sometimes the question is narrower than \"is the site up\" — it's \"is this one port even open\". nc -zv host port attempts a bare TCP connection to a single port and reports whether it succeeded, without sending any protocol-specific data, making it the right tool for confirming a firewall rule actually took effect or that a service is listening at all, before debugging anything at the application layer above it."
+        },
+        {
+          "heading": "A few numbers worth knowing",
+          "body": "A round-trip ping under about 20ms is typical on the same continent, 80–150ms is normal across an ocean, and anything creeping past 200ms on a route that's usually fast is worth a second look. TTL (time to live) in a ping reply hints at how many hops away a host is and, loosely, its operating system — a TTL that drops steadily across mtr hops and then suddenly resets can mean traffic is being redirected somewhere unexpected. On the HTTP side, curl's status code tells most of the story before you read a single byte of body: 2xx means the request succeeded, 3xx means look at the Location header for where it's redirecting to, 4xx means the client's request was rejected (401/403 for auth, 404 for a genuinely missing resource), and 5xx means the failure is on the server, not in anything you sent. None of these numbers are exotic — they're just easy to forget until the one time you actually need them."
+        },
+        {
+          "heading": "Running these without installing anything",
+          "body": "All of the above normally means opening a real terminal, and on a phone or a locked-down work laptop that's not always an option. LinuxCLI runs dig, host, whois, ping, mtr, curl, openssl s_client, and nc inside a disposable, sandboxed Linux container reachable straight from the browser — no install, no account, and no state left behind once the command finishes. It won't replace a real shell for daily work, but for a one-off DNS check or a quick TLS inspection from a machine you don't control, it's often faster than finding one."
+        }
+      ]
+    }
+  },
+  "tools": {
+    "h1": "Online network diagnostic tools: dig, whois, ping, curl and more",
+    "metaTitle": "Online network diagnostic tools — dig, whois, ping, curl, mtr, nc",
+    "metaDescription": "A real, sandboxed Linux terminal in your browser for dig, whois, host, curl, openssl s_client, mtr, ping and nc — free, no install, no signup.",
+    "intro": "One shared terminal for every tool below — type a command yourself, or jump to a tool's section for its syntax and an example you can run with one click."
+  },
+  "about": {
+    "title": "About LinuxCLI",
+    "metaDescription": "What LinuxCLI is, how the sandbox works, and the acceptable use policy for its network diagnostic tools.",
+    "body": [
+      "LinuxCLI gives you a real, one-time-use Linux command line for network diagnostics and OSINT lookups — dig, whois, host, curl, openssl s_client, mtr, ping and nc — without installing anything locally.",
+      "Only a fixed whitelist of read-only diagnostic tools is available. There is no active port scanning (nmap, masscan, etc.) — that's a deliberately different class of tool and isn't offered here."
+    ],
+    "sandbox": {
+      "title": "How the sandbox works",
+      "body": [
+        "Each session runs a single command inside an isolated, disposable Docker container: no privileges (cap-drop=ALL), a read-only filesystem, and no network access beyond what the specific tool itself needs.",
+        "The container is destroyed immediately after your command finishes, whether it succeeded, failed, or timed out — there is no persistent state, no shell access, and no way to chain commands together across runs.",
+        "One WebSocket connection runs exactly one command at a time. Every request — accepted or rejected by the command validator — is written to an insert-only audit log for abuse investigation, and expires automatically after 90 days."
+      ]
+    },
+    "privacyBlurb": {
+      "title": "Data & privacy",
+      "body": [
+        "LinuxCLI keeps as little as it can while still being able to investigate abuse: a hashed (not raw) IP address, the command you ran, and a timestamp. If you register an account, you can see it and delete it at any time.",
+        "Full details of what's collected, why, and for how long — the "
+      ],
+      "linkText": "Privacy Policy",
+      "linkHref": "/privacy",
+      "afterLink": "."
+    },
+    "acceptableUse": {
+      "title": "Acceptable use policy",
+      "body": [
+        "Use LinuxCLI only against hosts and domains you own, operate, or are otherwise authorized to test — for example your own infrastructure, or public DNS/WHOIS records.",
+        "Do not use LinuxCLI to probe, harass, or gather information about third-party systems without authorization. Requests are rate-limited per IP (and per API key, if you generate one), and abusive use may be blocked."
+      ],
+      "linkText": "Terms of Service",
+      "linkHref": "/terms",
+      "beforeLink": "The full policy, including what happens if it's violated, is in the "
+    },
+    "builtBy": {
+      "beforeLink": "LinuxCLI is built and maintained by ",
+      "linkText": "R0men",
+      "linkHref": "https://github.com/R0men",
+      "afterLink": " on GitHub."
+    }
+  },
+  "privacy": {
+    "title": "Privacy Policy",
+    "metaDescription": "What LinuxCLI collects, why, how long it's kept, and how to view or delete your account data.",
+    "intro": [
+      "LinuxCLI is built to keep as little data as possible while still being able to run a shared service responsibly — preventing abuse, keeping the sandbox available, and following the law. This page describes exactly what is collected, why, and for how long."
+    ],
+    "sections": [
+      {
+        "id": "audit-log",
+        "heading": "Command activity (audit log)",
+        "body": [
+          "Every command you submit — whether it runs successfully, fails, or is rejected by the command validator — is recorded: a hashed identifier derived from your IP address (HMAC-SHA256, not the raw address), the command and arguments (or the rejected raw text), a timestamp, and the outcome (exit code, duration, whether output was truncated).",
+          "This log exists to investigate abuse reports and keep the service reliable — it is never used for advertising or profiling. Entries are insert-only (nothing is ever edited) and are automatically deleted after 90 days by the database itself, with no separate manual step."
+        ]
+      },
+      {
+        "id": "account-data",
+        "heading": "Account data (if you register)",
+        "body": [
+          "Registering with email and password stores your email (used only to log in — never shown anywhere else in the interface) and a username (a public-facing nickname). Your password is never stored: only a salted scrypt hash of it is, using a memory-hard algorithm designed to resist offline cracking.",
+          "Signing in with GitHub or Google stores your provider account ID, email, and the username it gave us — there is no password to store for these accounts at all. LinuxCLI never sees your GitHub or Google password; the whole exchange happens directly between your browser, the provider, and our backend."
+        ]
+      },
+      {
+        "id": "api-key",
+        "heading": "API key / session token",
+        "body": [
+          "Whether you're anonymous or signed in, your session is a random 256-bit token. Your browser keeps the real value in local storage; the server only ever stores a SHA-256 hash of it — the same approach used for passwords, adapted for a value that's already high-entropy and needs a fast lookup."
+        ]
+      },
+      {
+        "id": "cookies",
+        "heading": "Cookies",
+        "body": [
+          "LinuxCLI itself does not set any cookies. Your login session and preferences (theme, API key) live in your browser's local storage, not cookies. The one exception is Cloudflare Turnstile, the anti-bot check that runs invisibly in the background — it may set its own cookie as part of verifying you're not a bot. This is a security mechanism, not tracking or advertising; see Cloudflare's own privacy policy for details on what it does with that cookie."
+        ]
+      },
+      {
+        "id": "third-parties",
+        "heading": "Third parties",
+        "body": [
+          "Cloudflare (hosting, and Turnstile for anti-bot protection) sees every request the way any host or CDN would. GitHub or Google are only contacted if you click their sign-in button yourself. LinuxCLI does not use any analytics, advertising, or tracking scripts."
+        ]
+      }
+    ],
+    "retentionTable": {
+      "id": "data-retention",
+      "heading": "What's kept, and for how long",
+      "rows": [
+        { "label": "Audit log entries (command, hashed IP, outcome)", "value": "90 days, automatic (database TTL), regardless of account deletion" },
+        { "label": "Session / API key", "value": "Until you log out, delete your account, or 24 hours of inactivity" },
+        { "label": "Account (email, username, password hash)", "value": "Until you delete your account" }
+      ]
+    },
+    "yourRights": {
+      "heading": "Your rights",
+      "body": [
+        "If you have an account, you can see your username and log out or delete your account entirely from your "
+      ],
+      "linkText": "account page",
+      "linkHref": "/account",
+      "afterLink": ". Deleting your account permanently removes your account record and revokes every session token stored for it, so nothing can log in as you again.",
+      "caveat": "Two honest caveats. First: deleting your account does not retroactively erase audit log entries already written before the deletion. Those entries are pseudonymized (hashed IP, not linked directly to your account) and insert-only by design — they simply age out on their own within the 90-day window above, the same as everyone else's. Second: if you have a terminal session already open in another tab at the moment you delete your account, that specific open connection can keep running until you close or reload it — deletion prevents new connections and logins, it does not forcibly disconnect ones already in progress."
+    }
+  },
+  "terms": {
+    "title": "Terms of Service",
+    "metaDescription": "Acceptable use, availability, and rate limits for LinuxCLI's network diagnostic tools.",
+    "intro": [
+      "By using LinuxCLI, you agree to the terms below. This is a small, free service run by one person — these terms exist mainly to keep it usable for everyone, not to bury you in legal text."
+    ],
+    "sections": [
+      {
+        "id": "acceptable-use",
+        "heading": "Acceptable use",
+        "body": [
+          "Use LinuxCLI only against hosts and domains you own, operate, or are otherwise authorized to test — for example your own infrastructure, or public DNS/WHOIS records that anyone is allowed to query.",
+          "Do not use LinuxCLI to probe, harass, gather information about, or otherwise interfere with third-party systems without authorization. This includes using it as a building block for automated reconnaissance against targets you don't control.",
+          "Only the fixed set of read-only diagnostic tools offered on the site is available. There is no active port scanning (nmap, masscan, etc.), no file upload, and no persistent shell — attempts to work around these limits (e.g. via crafted arguments) are themselves a violation of these terms, separate from whatever the command validator already blocks technically."
+        ]
+      },
+      {
+        "id": "rate-limits",
+        "heading": "Rate limits and enforcement",
+        "body": [
+          "Usage is rate-limited per IP address (and per API key, if you generate or register one). Limits exist to keep the service available for everyone, not to meter a paid product — there is currently no paid tier.",
+          "Accounts or IP addresses used abusively — to violate the acceptable use section above, to circumvent rate limits, or to attack the service itself — may be rate-limited further or blocked, without notice, at the operator's discretion."
+        ]
+      },
+      {
+        "id": "availability",
+        "heading": "No warranty, no uptime guarantee",
+        "body": [
+          "LinuxCLI is provided as-is, free of charge, with no uptime or availability guarantee. It may be slow, rate-limited, partially unavailable, or discontinued at any time without notice. Do not build anything business-critical on top of it.",
+          "Command output comes from real, live tools (dig, curl, whois, etc.) run against real, live infrastructure you point them at — LinuxCLI does not guarantee the accuracy, completeness, or timeliness of that output, only that it faithfully runs the command you typed and returns what the tool itself produced."
+        ]
+      }
+    ]
+  },
+  "help": {
+    "title": "Available commands",
+    "intro": "Type help or ? in the terminal at any time to see this list without leaving the page."
+  }
+}

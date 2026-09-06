@@ -1,0 +1,53 @@
+export const metadata = {
+  title: 'nc (netcat) command guide: confirm a port is actually open',
+  description:
+    'How to use nc -zv to test whether a specific TCP port is reachable, and how to tell "refused" apart from "silently dropped" — the fastest way to confirm a firewall rule actually took effect.',
+};
+
+export const commandMeta = {
+  module: 'network',
+  moduleLabel: 'Network',
+  command: 'nc',
+  toolId: 'nc',
+  summary: 'Test whether a single TCP port is open, without speaking any application protocol.',
+};
+
+# nc: is the port even open, before debugging anything above it
+
+`nc` (netcat) has a long history as a general-purpose networking Swiss Army knife — piping data between sockets, quick file transfers, ad hoc listeners. Here it's deliberately narrowed to exactly one job: **`-zv host port`**, a zero-I/O connection check of a single TCP port. No data is sent, no protocol is spoken — it just attempts to open a TCP connection and reports what happened. That narrowness is the point: it answers "is this port reachable" completely independently of whatever's supposed to be running on it.
+
+## Reading `-z` and `-v`
+
+`-z` puts `nc` in zero-I/O mode: attempt the connection, then close it immediately without sending or expecting any data. `-v` makes it print the result explicitly rather than exiting silently. Together, `nc -zv example.com 443` does exactly one thing — attempts a TCP handshake against port 443 and tells you whether it succeeded.
+
+## Three outcomes, and they mean different things
+
+This is the part worth understanding properly, because the three ways this can fail point at three different problems:
+
+- **`Connection to host port [tcp/*] succeeded!`** — the port is open, and something is actively listening and accepting connections. Reachability isn't the issue, whatever you were actually trying to do above this layer needs debugging separately.
+- **`Connection refused`**, returned quickly — the host is reachable at the network level, but nothing is listening on that specific port. This usually means either the service isn't running, or you've got the wrong port. The host's own kernel actively said "nothing here."
+- **No response at all, hanging until timeout** — this is a different, more specific signal: it usually means a firewall is silently dropping the connection attempt rather than the host actively rejecting it. A host that's simply off or unreachable and a firewall rule that's intentionally blocking the port both look like this from the outside, which is exactly why "it's just timing out" is a more useful thing to report than "it's not working" — it already rules out "nothing's listening" in favor of "something in between is blocking it."
+
+## Why only one port, not a range
+
+Real `nc` will happily scan a port range in one invocation. That's deliberately not available here — scanning a range of ports on a host is port-scanning behavior, a different class of tool with a different risk profile than checking one specific port you already have a reason to check (confirming a firewall change, confirming a service came up). One target, one port, one clear yes/no answer.
+
+## A quick reference for common ports
+
+Knowing what's *supposed* to be listening on a port makes a result easier to interpret. A few worth having memorized: **22** (SSH), **80**/**443** (HTTP/HTTPS), **25**/**587** (SMTP, mail submission), **53** (DNS), **3306** (MySQL), **5432** (PostgreSQL), **6379** (Redis), **27017** (MongoDB). A refused or filtered result on 443 for a public website is a real problem; the same result on 5432 from outside a private network is very often exactly the intended, secure configuration — a database port that answers `nc -zv` from the open internet is usually a bigger concern than one that doesn't.
+
+## `nc` vs everything else
+
+`nc` sits below the application layer entirely — it doesn't know or care whether port 443 is serving HTTPS, SSH tunneled over a nonstandard port, or nothing meaningful at all; it only knows whether a TCP handshake completes. That makes it the right *first* step before reaching for something protocol-aware:
+
+- Before troubleshooting an HTTPS/TLS problem with [`openssl s_client`](/commands/tls/openssl-s-client), confirm the port is even reachable with `nc -zv host 443` first — a TLS handshake can't begin at all if the TCP connection itself never completes, and the two failure modes look confusingly similar from the browser's error message alone.
+- Before debugging why an HTTP request is failing with [`curl`](/commands/web/curl), the same logic applies: if `nc -zv host 80` can't even connect, curl's error is downstream of a problem `nc` already found faster.
+- Compared to [`ping`](/commands/network/ping): `ping` tests ICMP reachability of the host in general; `nc -zv` tests TCP reachability of one specific port. A host can answer `ping` while a specific port is completely closed, and a host can have a port wide open while blocking ICMP entirely — they're not substitutes for each other.
+
+## A couple of real scenarios
+
+**"We just changed a firewall rule, did it actually take effect?"** `nc -zv` against the exact host and port the rule was supposed to open (or close) is the fastest possible confirmation — faster than trying the actual application and wondering whether a failure is the firewall or something else entirely.
+
+**"Our app can't connect to the database, is it a network issue or a config issue?"** `nc -zv` the database host and port from outside the app first. If it connects, the network path is fine and the problem is almost certainly in the application's own connection config (credentials, connection string, driver settings). If it hangs or refuses, you've just ruled out the application layer as the cause before spending any time there.
+
+[Try it yourself](/tools#nc) against a host and port you expect to be open — and one you expect to be closed, to see the difference between refused and dropped firsthand.

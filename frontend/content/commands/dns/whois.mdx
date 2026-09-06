@@ -1,0 +1,59 @@
+export const metadata = {
+  title: 'whois command guide: check domain registration, expiry and ownership',
+  description:
+    "How to read a whois record — registrar, expiry date, name servers, and network ownership for an IP — and why it answers a completely different question than dig.",
+};
+
+export const commandMeta = {
+  module: 'dns',
+  moduleLabel: 'DNS',
+  command: 'whois',
+  toolId: 'whois',
+  summary: 'Who registered a domain, when it expires, and which registrar or network is responsible.',
+};
+
+# whois: registration facts, not DNS resolution
+
+The single most common mix-up in DNS troubleshooting is reaching for the wrong tool: `dig` tells you what a domain currently resolves to; `whois` tells you who's actually responsible for it. A domain can resolve perfectly and still be one day from expiring. A domain can fail to resolve entirely while its registration is fully valid and paid up. These are independent facts, and `whois` only ever answers the second kind.
+
+## What `whois` actually queries
+
+`whois example.com` doesn't ask a DNS resolver anything — it queries a registry database instead, and the response comes back as a block of plain-text fields rather than DNS record types. The fields that matter most, in the order you'll usually want to read them:
+
+- **Registrar** — the company the domain was registered through (Namecheap, GoDaddy, Cloudflare Registrar, etc.), not the DNS/hosting provider.
+- **Creation Date** / **Updated Date** — when the domain was first registered and when its record last changed.
+- **Registry Expiry Date** — the date the registration lapses if not renewed. This is the single most useful field for the most common `whois` use case: confirming a domain isn't about to expire.
+- **Name Server** entries — the authoritative name servers on file with the registrar. Worth cross-checking against `dig example.com NS`: if these two disagree, DNS changes made at the registrar haven't propagated to the zone yet, or vice versa.
+- **Domain Status** codes (e.g. `clientTransferProhibited`, `serverHold`) — registry-level locks, unrelated to DNS or hosting.
+- **Registrant/Admin/Tech contact** — increasingly redacted behind registrar privacy services since GDPR; don't expect a real name and email on most modern lookups.
+
+## The same command, a different kind of answer for an IP
+
+`whois` isn't limited to domains — `whois 203.0.113.10` queries a Regional Internet Registry (ARIN, RIPE NCC, APNIC, LACNIC, or AFRINIC, depending which region the address block was allocated in) instead of a domain registrar, and returns a completely different field set: the network block (CIDR range) the IP belongs to, the organization it was allocated to, and an abuse contact. This is the standard first step when investigating traffic from an unfamiliar IP — before assuming anything malicious, `whois` on the source IP tells you whether it's a known cloud provider's range, a residential ISP, or a hosting company, which changes how you'd report or respond to it.
+
+## Reading an expiry date correctly
+
+`Registry Expiry Date` is UTC and refers to when the registration itself lapses — not a renewal reminder, not a grace period. Most registries do give a short grace/redemption window after expiry before a domain becomes available again, but relying on that window is a bad plan: during it, the domain typically stops resolving or gets parked by the registrar, which for a live production domain is functionally the same as an outage. If `whois` shows an expiry date days away and nobody on the team confirms it's set to auto-renew, that's worth escalating before it becomes a DNS incident that isn't actually a DNS problem at all.
+
+## `whois` vs `dig`: worth restating plainly
+
+- **`dig example.com`** — "what does this domain resolve to right now, according to a resolver." Live, can change minute to minute, cached at multiple layers.
+- **`whois example.com`** — "who registered this domain, and until when." Registry data, changes rarely, no caching layers to think about.
+
+A support ticket that says "the domain is broken" could mean either. Running both in the first minute — [`whois`](/tools#whois) for registration health, [`dig`](/commands/dns/dig) for current resolution — rules out or confirms half the possible causes immediately, rather than guessing which one applies.
+
+## Why some responses are thinner than others
+
+Not every `whois` response has the same depth, and it's not a sign of a broken lookup — it reflects how the registry itself is structured. `.com` and `.net` are **thin registries**: the central registry only stores which registrar a domain is with, and the registrar itself holds the full contact/date details, so `whois` (this one included) follows a referral from registry to registrar automatically to get the complete picture. Many country-code TLDs run **thick registries** instead, where the registry holds everything directly. Either way the output looks similar, but it's worth knowing a `.com` lookup is actually two queries chained together behind the scenes, which is also why a `.com` response occasionally includes a "Registrar WHOIS Server" line — that's the referral being made visible.
+
+## What this `whois` doesn't do
+
+The whitelisted form here is deliberately just `whois <domain-or-ip>` — a single required argument, no server override flag, no recursive `-h` targeting of a specific whois server. In practice this rarely matters: `whois` clients (this one included) already follow registry referrals automatically for the common TLDs, so a plain query on a domain or IP resolves to the right authoritative registry data without needing to specify one by hand.
+
+## A couple of real scenarios
+
+**"The domain just stopped working and nobody touched DNS."** `whois yourdomain.com` first, specifically the expiry date — an unnoticed renewal failure is a far more common cause of sudden, unexplained domain outages than any DNS misconfiguration, and it's the one people check last instead of first.
+
+**"We're seeing repeated suspicious requests from the same IP."** `whois <that-ip>` before doing anything else — the network/organization field tells you immediately whether you're looking at a residential connection, a known cloud provider's IP range (where abuse reports go to the provider, not the end customer), or a hosting company, which determines who you'd actually contact.
+
+[Run a lookup yourself](/tools#whois) against a domain or IP you're curious about — registrar, expiry, and network ownership, all in one plain-text response.

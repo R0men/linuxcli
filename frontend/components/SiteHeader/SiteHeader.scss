@@ -1,0 +1,61 @@
+.site-header {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.75rem 1.5rem;
+  padding: 1rem 1.5rem;
+  border-bottom: 1px solid var(--color-border);
+}
+
+// brand + nav (3 посилання) + AuthStatus + ThemeToggle без flex-wrap
+// переповнювали вузький viewport (нема жодного @media в усьому проєкті
+// досі — "мобільний UX" явно не займались, беклог). flex-wrap: wrap
+// вище — базовий захист від горизонтального overflow за замовчуванням,
+// нижче — тісніше пакування замість зайвих переносів на типовому
+// телефонному екрані.
+@media (max-width: 640px) {
+  .site-header {
+    padding: 0.75rem 1rem;
+    gap: 0.5rem 1rem;
+  }
+}
+
+.site-header .brand {
+  font-family: var(--font-mono);
+  font-weight: 700;
+  text-decoration: none;
+  color: var(--color-text);
+}
+
+.site-nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  margin-right: auto;
+}
+
+.site-nav a {
+  text-decoration: none;
+  color: var(--color-text-muted);
+}
+
+.site-nav a:hover {
+  color: var(--color-text);
+}
+
+// AuthStatus і ThemeToggle — один flex-item, а не два: flex-wrap переносить
+// items цілими блоками, тому обгортка гарантує, що sign in/sign up завжди
+// переносяться разом з theme-toggle на новий рядок, а не окремо одне від
+// одного при звуженні viewport.
+.site-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+@media (max-width: 640px) {
+  .site-nav {
+    gap: 0.75rem;
+    font-size: 0.9rem;
+  }
+}

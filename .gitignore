@@ -1,0 +1,23 @@
+# dependencies
+node_modules/
+
+# env — real values stay local or in the host's dashboard (Cloudflare Pages / VPS)
+.env
+.env*.local
+
+# Next.js build/output
+frontend/.next/
+frontend/out/
+
+# dev log collector (frontend/scripts/log-server.mjs)
+frontend/logs/
+
+# Cloudflare Workers/Wrangler
+.dev.vars
+.wrangler/
+
+# OS/editor
+.DS_Store
+Thumbs.db
+.idea/
+*.log

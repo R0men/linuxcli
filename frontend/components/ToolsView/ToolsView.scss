@@ -1,0 +1,24 @@
+.tools-page h1 {
+  font-size: 1.5rem;
+}
+
+.tools-intro {
+  color: var(--color-text-muted);
+  max-width: 65ch;
+}
+
+.tools-jumplinks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 1rem;
+  margin: 1rem 0 2rem;
+  padding: 0.75rem;
+  border: 1px dashed var(--color-border);
+  border-radius: 6px;
+  font-family: var(--font-mono);
+  font-size: 0.875rem;
+}
+
+.tools-jumplinks a {
+  text-decoration: none;
+}

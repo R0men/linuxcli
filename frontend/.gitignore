@@ -1,0 +1,23 @@
+# залежності
+node_modules/
+
+# next.js білд/вивід
+.next/
+out/
+
+# env — реальні значення тільки локально або в Cloudflare Pages
+# dashboard; у git лишається тільки .env.example як шаблон
+.env
+.env*.local
+
+# лог-колектор локальної dev-сесії (scripts/log-server.mjs, npm run logs)
+logs/
+
+# Cloudflare Workers/Wrangler — секрети й локальний кеш, не конфіг
+.dev.vars
+.wrangler/
+
+# ОС/редактор
+.DS_Store
+Thumbs.db
+.idea/

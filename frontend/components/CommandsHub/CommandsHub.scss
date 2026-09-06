@@ -1,0 +1,26 @@
+.commands-hub-intro {
+  color: var(--color-text-muted);
+  max-width: 60ch;
+}
+
+.commands-hub-list {
+  list-style: none;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem 1.5rem;
+  margin-top: 1.5rem;
+}
+
+.commands-hub-list a {
+  font-family: var(--font-mono);
+  text-decoration: none;
+  color: var(--color-link);
+  font-size: 1.1rem;
+}
+
+.commands-hub-count {
+  color: var(--color-text-muted);
+  font-size: 0.85rem;
+  margin-left: 0.4rem;
+}

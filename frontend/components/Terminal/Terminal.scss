@@ -1,0 +1,128 @@
+// .terminal-wrap (margin навколо цього блоку) навмисно НЕ тут, а в
+// TerminalSkeleton.scss — той підвантажується статично разом зі сторінкою,
+// на відміну від цього файлу (CSS-чанк dynamic(..., {ssr:false}) термінала).
+.terminal-widget {
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  overflow: hidden;
+  background: var(--color-bg-raised);
+  display: flex;
+  flex-direction: column;
+}
+
+// position: fixed поверх усієї сторінки — навмисно CSS-оверлей, а не
+// Fullscreen API (див. коментар біля useEffect у Terminal.jsx). body
+// scroll блокується з JS (document.body.style.overflow) на час активного
+// стану.
+.terminal-widget--fullscreen {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  border: none;
+  border-radius: 0;
+}
+
+.terminal-widget--fullscreen .terminal-container {
+  flex: 1;
+  height: auto;
+}
+
+.terminal-statusbar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.5rem 0.7rem;
+  padding: 0.4rem 0.75rem;
+  // min-height збігається з .terminal-skeleton-statusbar у
+  // TerminalSkeleton.scss — щоб заміна скелетона на реальний термінал не
+  // давала додаткового стрибка висоти (CLS) через різницю в 1-2px.
+  min-height: 2.25rem;
+  box-sizing: border-box;
+  border-bottom: 1px solid var(--color-border);
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+  color: var(--color-text-muted);
+}
+
+.terminal-status--open {
+  color: var(--color-accent);
+}
+
+.terminal-status--error,
+.terminal-status--closed {
+  color: var(--color-danger);
+}
+
+.terminal-reconnect {
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  background: var(--color-accent);
+  color: var(--color-accent-contrast);
+  border: none;
+  border-radius: 4px;
+  padding: 0.15rem 0.5rem;
+  cursor: pointer;
+}
+
+.terminal-download {
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  background: transparent;
+  color: var(--color-text-muted);
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+  padding: 0.15rem 0.5rem;
+  cursor: pointer;
+  margin-left: auto;
+}
+
+.terminal-download:hover {
+  color: var(--color-text);
+  border-color: var(--color-text-muted);
+}
+
+// Fullscreen-кнопка потрібна саме там, де 420px термінала займає
+// непропорційно багато вузького мобільного екрана — на десктопі досить
+// місця й без неї, тому вона прихована вище 640px (той самий брейкпоінт,
+// що й SiteHeader.scss). Іконка замість тексту — статусбар і так тісний
+// на вузькому екрані поруч з Download log.
+.terminal-fullscreen {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 1.35rem;
+  height: 1.35rem;
+  padding: 0;
+  line-height: 1;
+  font-size: 0.9rem;
+  background: transparent;
+  color: var(--color-text-muted);
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+@media (max-width: 640px) {
+  .terminal-fullscreen {
+    display: flex;
+  }
+
+  .terminal-download {
+    margin-left: 0;
+  }
+
+  .terminal-container {
+    overflow-x: hidden;
+  }
+}
+
+.terminal-container {
+  padding: 0.5rem;
+  height: 420px;
+  // JS (Terminal.jsx) сам перетворює touch-жест на term.scrollLines() —
+  // touch-action: none вимикає нативну обробку тача браузером ще до JS,
+  // щоб не було "стрибка" сторінки на перших пікселях руху, поки не
+  // спрацював event.preventDefault() у touchmove.
+  touch-action: none;
+}

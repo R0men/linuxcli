@@ -1,0 +1,63 @@
+export const metadata = {
+  title: 'Email not arriving? Diagnose MX, SPF, domain expiry and mail port reachability',
+  description:
+    'A working checklist for "our email isn\'t arriving" — dig, whois and nc run in order to check mail routing, domain registration status, and mail server reachability without guessing.',
+};
+
+export const commandMeta = {
+  module: 'troubleshooting',
+  moduleLabel: 'Troubleshooting Guides',
+  command: 'email-not-arriving',
+  label: 'Email not arriving',
+  summary: 'MX records, SPF, domain expiry and mail port reachability checked in order with dig, whois and nc.',
+};
+
+# Email isn't arriving: diagnosing MX, SPF, and mail server reachability
+
+"Email is bouncing" or "email just isn't arriving, no bounce at all" cover a handful of genuinely different failures — a missing mail record, an unauthorized sender, an expired domain, or a mail server that's simply unreachable. None of them require access to the mail server itself to diagnose; all of the following runs entirely from the outside, the same view an external sender's mail system has.
+
+## Step 1: does mail even know where to go? — `dig` for MX
+
+```
+dig example.com MX +short
+```
+
+An empty result means exactly what it looks like: no mail exchanger is configured for this domain at all, and mail addressed to it has nowhere to go — this alone fully explains silent, no-bounce non-delivery. If MX records are present, note the mail server hostname(s) they point to and move to Step 2.
+
+## Step 2: is the sender actually authorized? — `dig` for TXT (SPF)
+
+```
+dig example.com TXT +short
+```
+
+Look for a record starting with `v=spf1` — this is the domain's SPF policy, the list of mail servers allowed to send email claiming to be from it. A missing SPF record, or one that doesn't include the sending server actually being used, is one of the most common causes of mail that sends without error on your end but gets silently dropped or spam-foldered on the receiving end — the receiving mail system checked SPF, found the sending server unauthorized, and acted on that without necessarily telling you. See the [full `dig` guide](/commands/dns/dig) for reading TXT records and other record types in more depth.
+
+If both MX and SPF check out, the DNS side of mail routing is configured correctly — the problem, if there is one, is downstream.
+
+## Step 3: is the domain itself still valid? — `whois`
+
+```
+whois example.com
+```
+
+An easy one to overlook: mail (and everything else) for a domain stops working the moment its registration lapses, and this can happen unexpectedly if an auto-renewal payment failed or a registration contact email went unnoticed. `whois` shows the registrar, creation date, and — the field that matters here — the expiry date. A domain that expired or entered a grace/redemption period explains a sudden, total mail (and web) outage far more often than people initially suspect, precisely because nothing about the domain's DNS records necessarily changes right away — they can keep resolving for a while even as the registration itself has lapsed.
+
+## Step 4: is the mail server actually reachable? — `nc`
+
+```
+nc -zv <mail-server-hostname> 25
+```
+
+Use the mail server hostname from the MX record in Step 1. Port `25` is standard SMTP (server-to-server mail delivery); port `587` is mail submission (client-to-server, less relevant for diagnosing inbound delivery, but worth checking the same way if outbound sending is also failing). A refused or timing-out connection here — after MX, SPF, and registration all checked out — points at a network-level problem: a firewall blocking port 25 (common on some cloud providers and residential networks by default, as an anti-spam measure), or the mail server process itself being down. See the [`nc` guide](/commands/network/nc) for telling "refused" apart from "silently dropped," which points at two different people to talk to (the mail server admin vs. whoever manages the firewall in front of it).
+
+## What this checklist can't do: check TLS on the SMTP connection itself
+
+Modern mail delivery between servers typically upgrades an initial plaintext SMTP connection to TLS mid-conversation (`STARTTLS`), rather than starting encrypted the way HTTPS does. That specific handshake isn't something this sandboxed `openssl s_client` can inspect here — only the plain `-connect host:port` form is available, without a mail-protocol-aware STARTTLS negotiation. If Steps 1–4 all check out and mail is still failing in a way that looks TLS-related (a receiving server rejecting the connection specifically citing certificate or encryption issues), that's the point where you'd need a dedicated SMTP/TLS testing tool rather than the general-purpose tools here.
+
+## A couple of real scenarios
+
+**"Mail from us to one specific company keeps bouncing, everyone else is fine."** Check that company's own MX and SPF setup, not yours — a receiving server with an overly strict or misconfigured SPF/DMARC policy on their end rejects mail from perfectly correctly configured senders more often than people expect, and it's easy to assume the problem is on the sending side by default.
+
+**"We just migrated DNS providers and now email has stopped."** Re-run Step 1 and Step 2 first — a DNS migration is one of the most common ways MX or SPF/TXT records get silently dropped or copied incorrectly, and the domain resolving fine for the website doesn't mean the mail-specific records came along for the ride.
+
+Run each command above against your own domain — [open the terminal](/tools) and work through Steps 1–4 in order; the first one that comes back wrong is almost always where the actual problem is.

@@ -1,0 +1,60 @@
+export const metadata = {
+  title: 'Checking DNSSEC with dig +dnssec: a practical guide',
+  description:
+    'How to use dig +dnssec to check whether a domain publishes DNSSEC signatures, read the ad flag and RRSIG records, and diagnose a validation failure — with a live sandboxed dig you can run in your browser.',
+};
+
+export const commandMeta = {
+  module: 'dns',
+  moduleLabel: 'DNS',
+  command: 'dig-dnssec',
+  toolId: 'dig',
+  summary: 'The `+dnssec` flag: how to check whether a domain is signed and whether its signatures actually validate.',
+};
+
+# Checking DNSSEC with `dig +dnssec`
+
+Plain DNS has no way to prove a response wasn't tampered with in transit — a resolver has to trust whatever answer it received. DNSSEC fixes that by cryptographically signing records, so a validating resolver can verify a response actually came from the zone's real owner and wasn't forged or altered along the way. `dig +dnssec` is how you see that verification from the outside, without needing your own validating resolver.
+
+## What `+dnssec` actually adds
+
+Run `dig example.com A +dnssec` and, if the zone is signed, the answer section gets a second record: an `RRSIG` alongside the `A` record, containing the signature and its validity window. Nothing else about the query changes — it's the same single request, just asking the resolver to include the DNSSEC data it already has, instead of stripping it out.
+
+The header also gains something worth checking first: the `ad` flag (authenticated data). If `ad` is set, the resolver you queried validated the signature chain itself and vouches for the answer. If it's missing, one of three things is true — the zone isn't signed, the resolver you're using doesn't validate DNSSEC at all, or validation failed and the resolver fell back to `SERVFAIL` instead (see below).
+
+## Reading a signed answer
+
+```
+dig example.com A +dnssec +short
+```
+
+`+short` still works with `+dnssec` — combine them and you get just the answer values, with the `RRSIG` line included. Drop `+short` for the full response if you want to see the `ad` flag in the header and inspect the `RRSIG`'s validity window directly.
+
+An `RRSIG` record's fields worth knowing: the algorithm number (which signing algorithm was used), the signature expiration and inception dates (signatures aren't permanent — they're re-signed periodically, and an expired one is a real, common failure mode), and the signer's name (which zone actually produced the signature).
+
+## Is a domain signed at all?
+
+Not every domain publishes DNSSEC records — it's opt-in per zone. `dig example.com +dnssec` against an unsigned domain returns a completely normal answer with no `RRSIG` and no `ad` flag: DNSSEC absent isn't an error, it's just the (still common) default. To confirm one way or the other, check for a `DS` record at the parent — `dig example.com DS` — which only exists if the domain's registrar has published a delegation signer record pointing at the child zone's key. No `DS` record means the domain isn't signed, full stop, regardless of what `+dnssec` on an `A` query shows.
+
+## When validation actually fails
+
+The failure case is more useful than the success case, because it's the one that actually costs someone time. If a domain **is** signed but something is wrong — an expired `RRSIG`, a key rollover done incorrectly, a broken chain of trust between the domain and its parent zone — a validating resolver won't just serve you a bad answer. It returns `SERVFAIL` instead, refusing to answer at all rather than returning something it can't verify. This is the single most common DNSSEC problem in practice: **"the site is completely unreachable, but only DNSSEC-validating resolvers"**, while it resolves fine everywhere else.
+
+The diagnostic move: query the same name against a resolver you know validates DNSSEC (`@1.1.1.1` or `@8.8.8.8` both do) and compare against one that doesn't, or that's local and non-validating. If a validating resolver returns `SERVFAIL` and a non-validating one returns a normal answer, that's confirmation the problem is DNSSEC-specific — an expired signature or a broken key chain, not a general DNS outage.
+
+```
+dig @1.1.1.1 example.com A +dnssec
+```
+
+If that comes back `SERVFAIL` while a plain `dig example.com A` against your regular resolver works fine, the domain's DNSSEC configuration needs attention at the registrar or DNS provider — this isn't something fixable from the querying side at all.
+
+## `dig +dnssec` vs `dig` without it
+
+- **Plain `dig`** answers "what does this resolve to right now" — the same question it's always answered, no cryptographic verification implied either way.
+- **`dig +dnssec`** answers a narrower, additional question: "is this specific answer signed, and does the resolver I asked vouch for it." It doesn't change what the domain resolves to; it only surfaces verification data that was already part of a proper DNSSEC-aware response.
+
+## What this won't do
+
+There's no `+cd` (checking disabled) here, and no way to force a specific resolver to skip its own validation policy — the sandbox model is one bounded query per invocation, and toggling validation behavior isn't part of the fixed allowlist. For a full chain-of-trust walk from the root down, dedicated tools like `delv` go further than `dig` itself normally does; `+dnssec` here answers the question that actually comes up in practice — is this domain signed, and does it validate — without needing either.
+
+Try it directly: [run `dig example.com A +dnssec` in the terminal](/tools#dig) against a domain you know is signed (most large providers — Cloudflare, Google, most gov/edu domains — sign their zones) and compare the header against an unsigned domain of your choice.

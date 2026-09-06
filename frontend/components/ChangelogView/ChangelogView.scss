@@ -1,0 +1,50 @@
+.changelog-intro {
+  color: var(--color-text-muted);
+  max-width: 60ch;
+}
+
+.changelog-entries {
+  margin-top: 2rem;
+  display: flex;
+  flex-direction: column;
+  gap: 2.5rem;
+}
+
+.changelog-entry {
+  padding-top: 1.5rem;
+  border-top: 1px solid var(--color-border);
+}
+
+.changelog-entry:first-child {
+  padding-top: 0;
+  border-top: none;
+}
+
+.changelog-entry-anchor {
+  text-decoration: none;
+}
+
+.changelog-entry time {
+  font-family: var(--font-mono);
+  font-size: 0.85rem;
+  color: var(--color-text-muted);
+}
+
+.changelog-entry h2 {
+  margin-top: 0.35rem;
+  font-size: 1.25rem;
+}
+
+.changelog-entry-body p,
+.changelog-entry-body li {
+  max-width: 70ch;
+  color: var(--color-text-muted);
+}
+
+.changelog-entry-body a {
+  color: var(--color-link);
+}
+
+.changelog-entry-body code {
+  font-family: var(--font-mono);
+}

@@ -1,0 +1,76 @@
+export const metadata = {
+  title: 'curl command guide: test HTTP requests, headers, redirects and status codes',
+  description:
+    'How to use curl to check response headers without downloading a page, follow or inspect redirects, send test API requests, and read HTTP status codes correctly.',
+};
+
+export const commandMeta = {
+  module: 'web',
+  moduleLabel: 'Web',
+  command: 'curl',
+  toolId: 'curl',
+  summary: 'Send a real HTTP request and inspect the response — status, headers, redirects, or a JSON body.',
+};
+
+# curl: testing what a web server actually says back
+
+`nc` tells you whether a port is open. [`openssl s_client`](/commands/tls/openssl-s-client) tells you whether the TLS handshake and certificate are fine. Neither tells you what the actual web application does with a request — the status code, the headers, the redirect chain, the response body. `curl` sits at the top of that stack: it's the tool for "what does this endpoint actually return."
+
+## `-I` vs `-i`: a distinction worth getting right
+
+These look almost identical and get mixed up constantly:
+
+- **`-I`** sends a `HEAD` request — headers only, no body is requested or downloaded at all. This is the fastest possible check of a URL: status code, `Content-Type`, caching headers, server banner, in one round trip, without pulling down any actual page content.
+- **`-i`** performs the request normally (`GET` by default) and **includes** the response headers above the body in the output. Use this when you need the headers *and* need to see the actual response content together — `-I` alone would never show you the body at all, even if something about it matters to the question you're asking.
+
+If you only need to know whether something responds and what it claims about itself, `-I` is faster and cheaper. If you need to see both the headers and the real response, `-i`.
+
+## `-L`: following redirects, or deliberately not
+
+By default `curl` stops at the first response it gets — including a `3xx` redirect — and shows you exactly that, nothing more. Adding `-L` makes it follow the `Location` header and keep going until it reaches a non-redirect response. Both behaviors are useful for different questions:
+
+- **Without `-L`**: "what does this specific URL respond with, right now" — useful for checking that a redirect rule itself is correct (is it pointing where it should, is it a 301 or a 302, exactly one hop).
+- **With `-L` and `-i`**: "where does this chain of redirects actually end up" — useful when something several hops downstream is broken and you need to see the whole path, not just the first step.
+
+A redirect loop — the classic "this page isn't redirecting properly" browser error — is exactly what `-L` will reveal by simply never terminating within its own retry limit; a single `curl -L` hanging or erroring out on redirect count is itself a diagnosis.
+
+## `-X`: testing beyond `GET`
+
+`-X GET|POST|PUT|DELETE` overrides the HTTP method. This is what turns `curl` from "check if a page loads" into a basic API testing tool — hitting an endpoint with the method it actually expects, rather than whatever `curl` would default to. Paired with `-d`, this covers the common shape of testing a REST API by hand without needing a full API client.
+
+## `-H`: setting headers
+
+`-H "Header-Name: value"` adds a request header, and can be repeated for multiple headers. The most common uses: `-H "Accept: application/json"` to tell an API you want a JSON response instead of its default, `-H "Content-Type: application/json"` when sending a JSON body with `-d`, or `-H "Authorization: Bearer <token>"` when testing an authenticated endpoint. One practical note on that last one: this tool runs in a shared, disposable sandbox — treat it the way you'd treat any environment you don't control, and avoid pasting real long-lived credentials into it if you wouldn't want them typed into a machine you don't own.
+
+## `-d`: sending a request body
+
+`-d '{"key":"value"}'` sends the given data as the request body, almost always paired with `-X POST` or `-X PUT` and a `Content-Type` header matching the data's format:
+
+```
+curl -X POST https://example.com/api/echo -H "Content-Type: application/json" -d "{\"ping\":true}"
+```
+
+This is the fastest way to confirm an API endpoint accepts the request shape you think it does, before wiring up real client code around it.
+
+## Reading status codes properly
+
+The status code is usually the fastest signal available, before reading a single byte of the body:
+
+- **`200 OK`** — succeeded, body contains the requested resource. **`204 No Content`** — succeeded, deliberately no body (common for `DELETE` or some `PUT` responses).
+- **`3xx`** — redirect; check the `Location` header (visible with `-i`) for where it's pointing, and whether it's a `301` (permanent) or `302`/`307` (temporary) — that distinction matters for anything caching the result, like a browser or a CDN.
+- **`400 Bad Request`** — the request itself was malformed, before the server even got to checking who you are or what you're asking for. **`401 Unauthorized`** — no valid credentials were provided. **`403 Forbidden`** — credentials were fine, but you're not allowed to do this. **`404 Not Found`** — the resource genuinely doesn't exist at this URL. **`429 Too Many Requests`** — you've been rate-limited.
+- **`500 Internal Server Error`** — the origin application itself failed. **`502 Bad Gateway`** — a proxy or load balancer in front of the app couldn't get a valid response from it — often not the application's own bug, but the layer in front of it. **`503 Service Unavailable`** — frequently intentional (maintenance mode, or the app shedding load under overload). **`504 Gateway Timeout`** — the upstream app took too long to respond, from the proxy's point of view.
+
+`502`/`503`/`504` in particular are worth telling apart from `500`: they usually point at infrastructure in front of the application (a load balancer, reverse proxy, or CDN) rather than a bug in the application's own code — a meaningfully different place to look.
+
+## What this `curl` won't do
+
+The URL has to be `http://` or `https://` — no `file://`, no other schemes curl technically supports, which closes off a whole class of unrelated behavior that has nothing to do with testing a web request. There's no `-o`/`-O` to save a response to a file either: everything comes back as terminal output only, capped at a fixed size, which is exactly what you want for inspecting a response rather than downloading one.
+
+## A couple of real scenarios
+
+**"The API is returning something we didn't expect."** `curl -i` (not just `-I`, since you need the body too) against the exact endpoint and method, with whatever headers the client normally sends — reproduces the request in isolation, outside of whatever application code might be doing something unexpected on the way there.
+
+**"A link redirects somewhere wrong."** `curl -I` first (no `-L`) to see exactly what that one URL responds with — the `Location` header tells you precisely where it's pointing without you having to follow it manually or guess from a browser's final landing page.
+
+[Run it in the terminal](/tools#curl) — `-I` against any URL is a fast, safe way to see exactly what it's actually returning.

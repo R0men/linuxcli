@@ -1,0 +1,39 @@
+.auth-status {
+  font-size: 0.9rem;
+  color: var(--color-text-muted);
+}
+
+.auth-status a {
+  text-decoration: none;
+  color: var(--color-text-muted);
+}
+
+.auth-status a:hover {
+  color: var(--color-text);
+}
+
+// username — до 40 символів (RegisterView), без обмеження одне довге
+// ім'я могло б само по собі розтягнути вузький мобільний хедер
+// ширше за viewport.
+.auth-status-name {
+  display: inline-block;
+  max-width: 8rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  vertical-align: bottom;
+}
+
+.auth-status-logout {
+  font: inherit;
+  color: var(--color-text-muted);
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  text-decoration: none;
+}
+
+.auth-status-logout:hover {
+  color: var(--color-text);
+}

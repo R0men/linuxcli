@@ -1,0 +1,69 @@
+export const metadata = {
+  title: 'Website is down? A step-by-step diagnosis with dig, nc, curl and openssl',
+  description:
+    'A working "site won\'t load" checklist — dig, nc, curl and openssl s_client run in order, each ruling out one layer, so you know exactly where the failure actually is instead of guessing.',
+};
+
+export const commandMeta = {
+  module: 'troubleshooting',
+  moduleLabel: 'Troubleshooting Guides',
+  command: 'website-down',
+  label: 'Website is down',
+  summary: 'DNS, port, HTTP, and TLS checked in order — dig, nc, curl, openssl s_client — to find exactly which layer failed.',
+};
+
+# Website is down: a step-by-step diagnosis with dig, nc, curl and openssl
+
+"The site is down" is really four or five different failures wearing the same browser error page. A DNS record that stopped resolving, a firewall blocking the port, a web server returning an error, and an expired TLS certificate all show up in Chrome as some flavor of "this site can't be reached" — and guessing which one it is wastes exactly the time you don't have during an outage. The fix is to check the layers **in order**, bottom to top, and stop at the first one that fails — because everything above a broken layer is guaranteed to fail too, and debugging it first is wasted effort.
+
+## Step 1: does the domain even resolve? — `dig`
+
+```
+dig example.com A +short
+```
+
+If this returns nothing, or an IP address you don't recognize as yours, stop here — nothing above this layer matters yet. An empty answer usually means the record was removed or never existed at this name; an unexpected IP usually means DNS points somewhere it shouldn't (a stale record, a misconfigured CNAME, or — if you just changed it — propagation still catching up). See the [full `dig` guide](/commands/dns/dig) for reading the rest of the response, including how to query a specific resolver with `@server` to rule out caching before assuming the record itself is wrong.
+
+If the domain resolves to the IP you expect, DNS is fine — move to the next layer.
+
+## Step 2: is the port actually open? — `nc`
+
+```
+nc -zv example.com 443
+```
+
+(Use `80` instead of `443` if you're checking a plain HTTP site.) This answers one narrow question — did a TCP connection to the port succeed — completely independent of whatever's supposed to be running on it. Three outcomes, three different next steps, covered in full in the [`nc` guide](/commands/network/nc):
+
+- **Succeeded** — something is listening and accepting connections. The problem is above this layer; go to Step 3.
+- **Refused** — the host is reachable, but nothing is listening on that port. The web server process itself is likely down, or you've got the wrong port.
+- **Hangs until timeout, no response** — usually a firewall silently dropping the connection, not a "the server is off" situation. Worth checking a security-group/firewall rule change before anything else.
+
+If `dig` resolved but `nc` can't connect, the failure is here — a DNS record pointing at a live domain doesn't mean the server behind it is reachable.
+
+## Step 3: what does the web server actually say? — `curl`
+
+```
+curl -I https://example.com
+```
+
+`-I` fetches headers only — the fastest way to see the status code without downloading a full page. A `200` here (with the port already confirmed open in Step 2) means the origin server itself is fine — if the site still "looks down" in a browser, the problem is somewhere between the two, like a CDN, a load balancer, or the browser's own cache/DNS, not the server you just checked. A `5xx` status means the server accepted the connection but failed to produce a valid response — the [`curl` guide](/commands/web/curl) breaks down what each specific `5xx` code implies about where in the stack (app vs. proxy vs. upstream) the failure actually is. A connection error at this step, right after `nc` confirmed the port was open, usually means a TLS problem — which is exactly what Step 4 is for.
+
+## Step 4: is it actually a certificate problem? — `openssl s_client`
+
+```
+openssl s_client -connect example.com:443 -servername example.com
+```
+
+Run this when `curl` fails on an `https://` URL with anything TLS/certificate-shaped, or when a browser shows a certificate warning specifically (not a generic "can't connect"). Skip straight to `Verify return code` at the end of the output: `0 (ok)` means the certificate is fine and the real problem is elsewhere; anything else — expired, self-signed, incomplete chain — tells you precisely what's wrong with the certificate itself. The full breakdown of what each code means, and why `-servername` matters when a host serves multiple domains, is in the [`openssl s_client` guide](/commands/tls/openssl-s-client).
+
+## Why this order, specifically
+
+Each step rules out an entire class of downstream failure before you spend time on it. There's no point reading a `curl` error carefully if `nc` already showed the port isn't even reachable — and no point suspecting a certificate if `dig` shows the domain isn't resolving to the server you think it is. Working bottom-up (DNS → transport → application → TLS) means every command you run is answering a question that couldn't have been answered by anything before it, instead of re-diagnosing the same failure from a different angle.
+
+## A couple of real scenarios
+
+**"It was working an hour ago and now it's completely down."** Start at Step 1 regardless of how confident you are DNS didn't change — an expired domain, an accidentally-deleted record, or a DNS provider outage all look identical to "the server crashed" from a browser, and `dig` rules it out (or confirms it) in one command before you touch anything else.
+
+**"It works for me but not for a customer."** Run the same four steps yourself first to confirm your own path is actually clean, then ask the affected person to run (or share the result of) at least Step 1 and Step 3 from their side — a regional DNS resolver serving a stale record, or a CDN edge in their region misbehaving, produces exactly this "works for me" pattern and step 1–2 from their network is usually what catches it.
+
+Each command above is a single, real invocation you can run right now — [open the terminal](/tools) and work through them in order against the domain that's actually giving you trouble.

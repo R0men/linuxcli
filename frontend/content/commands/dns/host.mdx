@@ -1,0 +1,55 @@
+export const metadata = {
+  title: 'host command guide: the fastest DNS overview, one line per record',
+  description:
+    'How host gives you A, AAAA and MX records in a single default query, when to point it at a specific DNS server, and when to reach for dig instead.',
+};
+
+export const commandMeta = {
+  module: 'dns',
+  moduleLabel: 'DNS',
+  command: 'host',
+  toolId: 'host',
+  summary: "A fast, script-friendly DNS lookup — one line per record, sensible defaults.",
+};
+
+# host: the quick-look DNS tool
+
+`host` and [`dig`](/commands/dns/dig) come from the same BIND utilities family and query the same DNS system, but they're built for different moments. `dig` gives you the full response — header, flags, TTLs, authority section — because sometimes you need every detail. `host` gives you the answer in one line per record and gets out of the way, because most of the time you just want to know whether a domain resolves and to what.
+
+## The default query already covers three record types
+
+This is the detail that makes `host` genuinely faster than `dig` for a first look, not just shorter: run `host example.com` with no record type specified at all, and it checks **A, AAAA, and MX together** in a single command, printing one line per answer:
+
+```
+example.com has address 93.184.216.34
+example.com has IPv6 address 2606:2800:220:1:248:1893:25c8:1946
+example.com mail is handled by 10 mail.example.com.
+```
+
+With `dig`, getting the same three answers means three separate queries (`dig example.com A`, `dig example.com AAAA`, `dig example.com MX`), or reading through the multi-record ANSWER section by hand. `host` front-loads exactly the three things people ask "does this domain work" about — does it have an IPv4 address, an IPv6 address, and somewhere for mail to go — in one call.
+
+## Querying a specific server
+
+`host` optionally takes a second argument: a specific DNS server to query instead of the default resolver — `host example.com 1.1.1.1`. This is the same idea as `dig`'s `@server` syntax, just as a plain second word instead of an `@`-prefixed one. The reason to do this is identical to `dig`: your local resolver's cache and a public resolver's cache aren't the same, so after a DNS change, querying both tells you whether what you're seeing is "the change hasn't reached this particular resolver yet" versus "the change didn't actually take."
+
+## What you don't get here
+
+The catch with the speed is that this whitelisted form doesn't accept a record-type argument the way `dig` does — you can't ask `host` specifically for just the TXT records or just the NS records this way, only the domain and an optional server. For a targeted single-record-type query (SPF/DKIM verification via TXT, checking authoritative name servers via NS, a reverse PTR lookup), [`dig`](/commands/dns/dig) is the right tool — it's built for precision, `host` is built for a fast default overview. Reach for `host` first to confirm the domain resolves at all and see what's already there; reach for `dig` when you need to interrogate one specific record type in detail, or want the raw TTLs and response flags that `host`'s condensed output leaves out.
+
+## Reading the "not found" cases
+
+When a record type genuinely doesn't exist for a domain, `host` says so directly rather than staying silent — a domain with no MX records prints something like `example.com mail is not handled by this server`, not an empty line you have to interpret. That's a real, useful signal: it means the domain resolves fine but has deliberately not set up mail handling (common for domains that only serve a website), as opposed to a DNS problem masking the true state.
+
+## CNAME chains show up automatically
+
+If a domain is an alias rather than a direct A/AAAA record — `www.example.com` pointing at a CDN endpoint via `CNAME`, for instance — `host` follows and reports the chain without being asked to: it prints the `CNAME` line, then keeps resolving until it reaches an actual address, showing every hop along the way. This matters when a hostname "isn't resolving" and the real cause is a broken link partway through an alias chain — one CDN or load balancer's `CNAME` target that no longer exists — rather than the domain itself lacking a record. `dig` shows the same chain if you read through its ANSWER section carefully, but `host` puts it in plain, ordered lines by default.
+
+## A couple of real scenarios
+
+**"Does this domain even work?"** — the single fastest sanity check available across the whole tool set. `host example.com` and read straight down: an address, an MX line if mail is configured, done in one command, before reaching for anything more specific.
+
+**"We migrated DNS providers, did everything come across?"** — `host example.com` against the new provider's own resolver first (if you know its IP) to confirm the new zone is actually serving correctly, independent of whether the rest of the internet has picked up the change yet.
+
+**"A subdomain that's supposed to point at our CDN isn't loading."** `host` on that subdomain specifically — if the `CNAME` chain it prints dead-ends at a target that itself doesn't resolve, the problem is the alias target having been decommissioned or renamed, not anything wrong with your own zone.
+
+[Try it in the terminal](/tools#host) — same domain, compare the one-line `host` summary against the fuller `dig` response side by side.

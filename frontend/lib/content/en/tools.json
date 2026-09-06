@@ -1,0 +1,119 @@
+[
+  {
+    "id": "dig",
+    "binary": "dig",
+    "label": "dig",
+    "h2": "dig — online DNS lookup tool",
+    "intro": "Query any domain's DNS records — A, AAAA, MX, TXT, NS, CNAME, SOA or PTR — straight from a real dig binary running in your browser.",
+    "exampleCommand": "dig example.com A +short",
+    "helpSyntax": "dig [@server] domain [A|AAAA|MX|TXT|NS|CNAME|SOA|PTR] [+short] [+dnssec]",
+    "description": "dig is the standard tool for inspecting DNS records. Point it at a domain to see how it resolves, which mail servers handle it, or which name servers are authoritative for it. You can target a specific resolver with @server, +short trims the output to just the answer, and +dnssec asks the resolver to include DNSSEC signature (RRSIG) records and the ad (authenticated data) flag.",
+    "useCases": [
+      "Check that a new A/AAAA record has propagated after a DNS change",
+      "Find the MX records to confirm where a domain's email is routed",
+      "Look up TXT records (SPF, DKIM, domain verification) for troubleshooting",
+      "Check with +dnssec whether a domain's DNSSEC signatures validate"
+    ]
+  },
+  {
+    "id": "whois",
+    "binary": "whois",
+    "label": "whois",
+    "h2": "whois — online domain lookup tool",
+    "intro": "Look up who registered a domain, when it was created, when it expires, and which registrar and name servers manage it.",
+    "exampleCommand": "whois example.com",
+    "helpSyntax": "whois domain",
+    "description": "whois queries the domain registry's public record for a given domain. It's the fastest way to check registration and expiry dates, registrar details, and delegated name servers without installing anything locally.",
+    "useCases": [
+      "Check when a domain you're interested in was registered or will expire",
+      "Identify the registrar and name servers behind a domain",
+      "Basic due diligence before buying or trusting a domain"
+    ]
+  },
+  {
+    "id": "host",
+    "binary": "host",
+    "label": "host",
+    "h2": "host — simple online DNS lookup",
+    "intro": "A lighter, more concise alternative to dig for a quick DNS resolution check.",
+    "exampleCommand": "host example.com",
+    "helpSyntax": "host domain [server]",
+    "description": "host resolves a domain name to its IP addresses (and vice versa) with compact, human-readable output — useful when you just want a fast yes/no on whether a name resolves, optionally against a specific DNS server.",
+    "useCases": [
+      "Quickly confirm a hostname resolves at all",
+      "Sanity-check DNS from a specific resolver while debugging propagation"
+    ]
+  },
+  {
+    "id": "curl",
+    "binary": "curl",
+    "label": "curl",
+    "h2": "curl — online HTTP request tool",
+    "intro": "Send a real HTTP(S) request — GET, POST or HEAD, with custom headers — and see the response headers or body live in your browser.",
+    "exampleCommand": "curl -I https://example.com",
+    "helpSyntax": "curl [-I|-i|-L] [-X GET|POST|HEAD|PUT|DELETE] [-H \"key: value\"]... [-A ua|--user-agent ua] [-d data] url",
+    "description": "curl is the standard tool for probing web servers and APIs. Use -I for headers only, -L to follow redirects, -H to add request headers, -A (or --user-agent) to set the User-Agent, and -d to send a request body. Only http:// and https:// URLs are allowed, and requests run with a forced timeout and output-size limit.",
+    "useCases": [
+      "Check response headers, status code and redirects for a URL",
+      "Verify a REST API endpoint responds as expected",
+      "Confirm security headers (HSTS, CSP, etc.) are present on a site"
+    ]
+  },
+  {
+    "id": "openssl-s-client",
+    "binary": "openssl",
+    "label": "openssl s_client",
+    "h2": "openssl s_client — online TLS certificate checker",
+    "intro": "Open a TLS connection to any host:port and inspect the certificate chain it presents.",
+    "exampleCommand": "openssl s_client -connect example.com:443 -servername example.com",
+    "helpSyntax": "openssl s_client -connect host:port [-servername name] [-showcerts]",
+    "description": "openssl s_client establishes a real TLS handshake against a server and prints the certificate it receives — issuer, validity dates, and (with -showcerts) the full chain. -servername sets SNI, which most modern hosts require to return the right certificate.",
+    "useCases": [
+      "Check a certificate's expiry date before it causes an outage",
+      "Confirm SNI is configured correctly for a multi-domain server",
+      "Inspect the full certificate chain for a TLS misconfiguration"
+    ]
+  },
+  {
+    "id": "mtr",
+    "binary": "mtr",
+    "label": "mtr",
+    "h2": "mtr — online traceroute / network path tool",
+    "intro": "See the network path to a host and the latency/loss at each hop, combining traceroute and ping into one report.",
+    "exampleCommand": "mtr -r -c 5 example.com",
+    "helpSyntax": "mtr -r -c count [-4|-6] host",
+    "description": "mtr traces the route packets take to a host and repeatedly probes each hop, so you can see exactly where latency or packet loss is happening along the path. Runs here in report mode (-r) with a capped packet count.",
+    "useCases": [
+      "Diagnose which network hop is causing latency or packet loss",
+      "Compare a network path over IPv4 vs IPv6"
+    ]
+  },
+  {
+    "id": "ping",
+    "binary": "ping",
+    "label": "ping",
+    "h2": "ping — online host reachability check",
+    "intro": "Send a handful of ICMP echo requests to a host and see round-trip time and packet loss.",
+    "exampleCommand": "ping -c 4 example.com",
+    "helpSyntax": "ping -c count host",
+    "description": "ping is the simplest way to check whether a host is reachable and how long a round trip takes. Runs here with a capped packet count, so it's a quick reachability check rather than a continuous stream.",
+    "useCases": [
+      "Confirm a host is up and reachable from the public internet",
+      "Get a rough sense of latency to a server before deeper debugging"
+    ]
+  },
+  {
+    "id": "nc",
+    "binary": "nc",
+    "label": "nc",
+    "h2": "nc — online TCP port connectivity check",
+    "intro": "Check whether a single TCP port on a host is open and accepting connections.",
+    "exampleCommand": "nc -zv example.com 443",
+    "helpSyntax": "nc -zv host port",
+    "description": "nc (netcat) here runs strictly as a one-shot connect check (-zv) against a single host:port — it reports whether the port is open, closed, or filtered. Listen mode and arbitrary data exchange are intentionally not available.",
+    "useCases": [
+      "Verify a specific port (e.g. a database or app port) is reachable from outside",
+      "Quickly confirm a firewall rule change took effect"
+    ]
+  }
+]

@@ -1,0 +1,80 @@
+export const metadata = {
+  title: 'dig command guide: DNS lookups explained with real examples',
+  description:
+    'How to use dig to query A, AAAA, MX, TXT, NS, CNAME, SOA and PTR records, read its output, and diagnose real DNS problems — with a live sandboxed dig you can run in your browser.',
+};
+
+export const commandMeta = {
+  module: 'dns',
+  moduleLabel: 'DNS',
+  command: 'dig',
+  toolId: 'dig',
+  summary: "The standard tool for inspecting a domain's DNS records directly, straight from a resolver.",
+};
+
+# dig: the standard tool for reading DNS records directly
+
+`dig` (Domain Information Groper) is the tool DNS administrators reach for first, for one simple reason: it shows you exactly what a resolver returned, with nothing hidden or reinterpreted. A browser's "site can't be reached" error collapses a dozen possible DNS failures into one vague message. `dig` shows you which one you actually have.
+
+## Anatomy of a dig response
+
+Run `dig example.com A` and you get several distinct sections, each answering a different question:
+
+- **HEADER** — the response status (`NOERROR`, `NXDOMAIN`, `SERVFAIL`...) and flags like `aa` (authoritative answer) or `rd`/`ra` (recursion desired/available).
+- **QUESTION SECTION** — an echo of exactly what you asked, so you can confirm the query itself was correct.
+- **ANSWER SECTION** — the actual record(s) returned, in the form `name  TTL  class  type  value`.
+- **Query time / SERVER / WHEN** — how long the resolver took to answer and which resolver answered it.
+
+The status code alone answers most "why won't this resolve" questions before you read anything else. `NOERROR` with an empty answer section means the domain exists but has no record of the type you asked for. `NXDOMAIN` means the domain doesn't exist at all — a typo, an expired registration, or a zone that was deleted. `SERVFAIL` means the authoritative name servers themselves are broken or unreachable, which is a very different problem from a missing record and points you at the registrar/DNS provider instead of your own configuration.
+
+## Record types: asking the right question
+
+A domain doesn't have "a DNS record" — it has many, each answering something different, and `dig` needs to know which one you want:
+
+- **A** / **AAAA** — the IPv4/IPv6 address a hostname resolves to. This is what most people mean by "DNS record."
+- **MX** — which mail servers are responsible for a domain, and their priority order. If email to a domain is bouncing, this is the first thing to check.
+- **TXT** — free-form text records, used for SPF (who's allowed to send mail as this domain), DKIM keys, and one-off domain-ownership verification strings from services like Google Search Console or Cloudflare.
+- **NS** — the authoritative name servers for a domain. If these point at the wrong provider, nothing else will resolve correctly no matter what records exist elsewhere.
+- **CNAME** — an alias pointing one hostname at another (`www` → the apex domain, or a subdomain → a CDN endpoint).
+- **SOA** — the Start of Authority record: the primary name server, an admin contact, and the zone's refresh/retry/expire timers, useful for confirming which server is authoritative and how stale a secondary might be.
+- **PTR** — the reverse of an A record: given an IP, what hostname claims it. Covered separately below, because the query format trips people up.
+
+Try it directly: [run `dig example.com MX` in the terminal](/tools#dig) and compare it against a TXT lookup for the same domain — same tool, completely different answer shape.
+
+## `+short`: cutting through the noise
+
+`dig example.com A` prints the full response — header, question, answer, timing, everything. Most of the time you just want the value. `dig example.com A +short` strips all of that down to bare answer lines: just the IP addresses (or mail servers, or TXT strings), one per line, nothing else. This is the difference between reading a DNS response and grepping it — `+short` is what you reach for once you already know what you're looking for and just need the current value, fast.
+
+## Querying a specific resolver with `@server`
+
+By default `dig` asks whatever resolver your system is configured to use. Prefixing the domain with `@` — for example `dig @1.1.1.1 example.com A` — sends the query to a specific resolver instead. This matters more than it sounds: DNS changes don't appear everywhere simultaneously. Your ISP's resolver might still be serving a cached, outdated record for minutes to hours after you've updated it, while a public resolver like `1.1.1.1` or `8.8.8.8` — which you don't share a cache with — often reflects the change immediately. If a DNS change "isn't showing" for you but the person you're troubleshooting with confirms it's live, querying two different `@server`s side by side usually explains the disagreement instantly: it's not two different truths, it's two different caches.
+
+## Reverse lookups: why `PTR` alone isn't enough
+
+Given an IP address, you'd expect `dig 203.0.113.10 PTR` to just work. It doesn't, because PTR records don't live under the IP itself — they live under a special reversed domain: `10.113.0.203.in-addr.arpa`. To look up who an IP belongs to, the actual query has to target that constructed name: `dig 10.113.0.203.in-addr.arpa PTR`. It's easy to get backwards (the octets are reversed relative to the IP), which is exactly why this is one of the more common `dig` mistakes — if a PTR lookup returns `NXDOMAIN` for an IP you know is in use, double-check the octet order before assuming reverse DNS isn't configured at all.
+
+## `dig` vs `whois` vs `host`
+
+These three answer genuinely different questions, and mixing them up wastes time:
+
+- **`dig`** answers "what does this domain currently resolve to, right now, according to this resolver" — live DNS data.
+- **`host`** answers the same core question as `dig` in a shorter, script-friendly format, useful when you just want the answer without the full response structure.
+- **`whois`** answers "who registered this domain, when does it expire, which registrar is responsible" — registration metadata, not DNS resolution. A domain can resolve perfectly via `dig` while being one day from expiring, or fail to resolve entirely while its `whois` registration is still fully valid. They're not interchangeable, and "the domain is broken" reports usually need both.
+
+## A few real troubleshooting patterns
+
+**"We changed our DNS an hour ago and it's still not working for some people."** Query the domain against two different `@server`s (your own resolver and a public one). If they disagree, it's propagation/caching, not a misconfiguration — wait out the record's TTL (visible in the answer section) rather than re-editing anything.
+
+**"Email to our domain is bouncing."** `dig yourdomain.com MX +short` first — if it's empty, mail has nowhere to go, full stop. If MX records are present, `dig yourdomain.com TXT` next, to check the SPF record actually authorizes the sending server; a valid MX with a missing or misconfigured SPF record is a very common silent-bounce cause.
+
+**"A domain-verification step won't complete."** Almost always a TXT record check: `dig yourdomain.com TXT +short` and compare the exact string against what the verifying service expects — trailing whitespace or an extra pair of quotes in how the record was entered is a frequent, easy-to-miss cause.
+
+## Checking DNSSEC
+
+`dig` here also accepts `+dnssec`, which adds `RRSIG` records and the `ad` (authenticated data) flag to the response when a domain is signed — useful for confirming a domain's DNSSEC signatures actually validate, and for diagnosing the "unreachable only from validating resolvers" failure mode. See the [dedicated `+dnssec` guide](/commands/dns/dig-dnssec) for how to read it and what a validation failure looks like.
+
+## What `dig` here won't do
+
+Chained/recursive tracing (`dig +trace`, which walks the full delegation path from the root servers down) isn't available — it issues a whole sequence of queries per invocation, which doesn't fit a tool built around a single bounded request with a fixed timeout. For the overwhelming majority of "is this record correct" and "has this propagated yet" questions, a direct query against a specific `@server` answers the same thing faster anyway.
+
+Every example above is a real, single `dig` call — [open the terminal](/tools#dig) and run any of them against a domain you control.

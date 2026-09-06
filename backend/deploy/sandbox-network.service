@@ -1,0 +1,13 @@
+[Unit]
+Description=Recreate linuxcli sandbox Docker network + egress firewall rules
+After=docker.service
+Requires=docker.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+EnvironmentFile=-/opt/linuxcli-backend/.env
+ExecStart=/opt/linuxcli-backend/deploy/setup-sandbox-network.sh
+
+[Install]
+WantedBy=multi-user.target

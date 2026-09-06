@@ -1,0 +1,9 @@
+export const changelogMeta = {
+  date: '2026-08-23',
+  title: 'dig now supports +dnssec',
+  summary: "Check whether a domain's DNSSEC signatures validate, right from the terminal.",
+};
+
+`dig +dnssec` is now available — it adds `RRSIG` records and the `ad` (authenticated data) flag to a response, so you can see whether a domain is signed and whether a resolver actually validated it. Combine it with `+short` in either order.
+
+New guide: [Checking DNSSEC with dig +dnssec](/commands/dns/dig-dnssec) — how to read a signed answer, confirm a domain is signed at all, and diagnose the most common DNSSEC failure ("unreachable, but only from validating resolvers").

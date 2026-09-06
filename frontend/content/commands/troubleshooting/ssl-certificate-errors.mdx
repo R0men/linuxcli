@@ -1,0 +1,70 @@
+export const metadata = {
+  title: 'SSL/TLS certificate errors: full diagnosis from DNS to handshake',
+  description:
+    'A working checklist for browser certificate warnings — dig, nc and openssl s_client run in order to find out whether it\'s really an expired, self-signed, or incomplete-chain certificate, or something else entirely.',
+};
+
+export const commandMeta = {
+  module: 'troubleshooting',
+  moduleLabel: 'Troubleshooting Guides',
+  command: 'ssl-certificate-errors',
+  label: 'SSL/TLS certificate errors',
+  summary: 'dig, nc and openssl s_client run in order to isolate exactly which part of the TLS setup is actually broken.',
+};
+
+# SSL certificate errors: diagnosing from DNS to handshake
+
+A browser certificate warning is a single blocking page that could mean half a dozen different things — an expired certificate, a self-signed one, a missing intermediate, a certificate served for the wrong domain, or the browser talking to the wrong server entirely because of a DNS problem. The warning itself doesn't distinguish between these. The commands below do, in the order that rules out the most basic explanation first.
+
+## Step 1: confirm you're actually reaching the right server — `dig`
+
+```
+dig example.com A +short
+```
+
+Before assuming the certificate is misconfigured, confirm the domain resolves to the server you expect. A domain pointing at the wrong IP — a stale record, a leftover entry from a previous host, a DNS change that hasn't finished propagating — will reliably serve *some* certificate, just not the one you're expecting, and that looks identical to "the certificate is wrong" from a browser. See the [`dig` guide](/commands/dns/dig) for querying a specific resolver with `@server` if you suspect propagation rather than a genuine misconfiguration.
+
+## Step 2: is port 443 even reachable? — `nc`
+
+```
+nc -zv example.com 443
+```
+
+A TLS handshake can't begin at all if the underlying TCP connection to port 443 never completes — and a browser's error message for "can't connect" and "connected but certificate rejected" can look confusingly similar at a glance. Confirming the port is open first (covered fully in the [`nc` guide](/commands/network/nc)) rules out a firewall or a down server before you spend time reading certificate details that were never the actual problem.
+
+## Step 3: read what the server actually presents — `openssl s_client`
+
+```
+openssl s_client -connect example.com:443 -servername example.com
+```
+
+This is the step that answers the question directly. Skip to `Verify return code` at the very end of the output — it's the fastest single line in the whole diagnosis:
+
+- **`0 (ok)`** — the certificate chain is genuinely valid. If a browser is still complaining, the problem is likely a stale browser cache, a clock badly out of sync on the client machine (certificate validity is time-based), or you're testing a different endpoint than the browser actually hit.
+- **`10 (certificate has expired)`** — check the `notAfter` date in the certificate chain block above; a recently-lapsed automated renewal (Let's Encrypt or similar) is the most common real-world cause of a certificate that was fine yesterday and isn't today.
+- **`19`/`18` (self-signed certificate)** — no path to a publicly trusted root exists. Expected and fine for an internal/dev server; a real problem for anything public.
+- **`21` (unable to verify the first certificate)** — the leaf certificate is fine, but an intermediate certificate linking it to a trusted root wasn't sent. This is an **incomplete chain**, one of the most common real misconfigurations, and it's fixed by adding the missing intermediate bundle to the server, not by replacing the certificate itself.
+
+Full detail on reading the rest of the certificate block — subject, issuer, the chain structure — is in the [`openssl s_client` guide](/commands/tls/openssl-s-client).
+
+## Step 4: does the certificate served match the domain you're checking? — `-servername`
+
+If Step 3 comes back `0 (ok)` but the *wrong* certificate is being served (a different domain's name in the subject/SAN fields), the likely cause is a server hosting multiple domains that isn't correctly using SNI to pick which certificate to present. Re-run Step 3 explicitly setting `-servername` to the exact hostname you expect:
+
+```
+openssl s_client -connect <server-ip>:443 -servername example.com
+```
+
+Connecting directly to a specific IP with `-servername` set is also how you check a specific backend behind a load balancer individually — useful when only some users report the warning, which usually means only some backends are affected, not all of them.
+
+## What curl adds once the certificate itself checks out
+
+Once `Verify return code` shows `0 (ok)`, `curl -I https://example.com` (see the [`curl` guide](/commands/web/curl)) confirms the whole request succeeds end to end, not just the TLS layer in isolation — worth running as a final check if you started this whole diagnosis from a browser error rather than a certificate warning specifically, since not every HTTPS failure is actually about the certificate.
+
+## A couple of real scenarios
+
+**"Some users get the warning, most don't."** Almost always Step 4 — a multi-backend setup where SNI or the certificate configuration is inconsistent across backends. Test the specific IP the affected user is likely hitting, not just the domain, which by default might resolve to a different (correctly configured) backend for you.
+
+**"It was fine yesterday, nobody changed anything."** Check `Verify return code` for `10 (certificate has expired)` first — "nobody changed anything" is exactly what an automated renewal silently failing looks like from the outside; the certificate just quietly ran out on its own schedule.
+
+Run the four steps above against the domain that's actually showing the warning — [open the terminal](/tools) — the `Verify return code` line in Step 3 is usually the one that tells you what you're actually looking at.

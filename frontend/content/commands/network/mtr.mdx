@@ -1,0 +1,61 @@
+export const metadata = {
+  title: 'mtr command guide: find exactly which network hop is the problem',
+  description:
+    'How to read an mtr report hop by hop, why loss at a middle hop is often meaningless, and how to tell the difference from a real problem — with a live sandboxed mtr you can run in your browser.',
+};
+
+export const commandMeta = {
+  module: 'network',
+  moduleLabel: 'Network',
+  command: 'mtr',
+  toolId: 'mtr',
+  summary: 'Combine traceroute and ping into one hop-by-hop report of loss and latency along a path.',
+};
+
+# mtr: where along the path the problem actually is
+
+[`ping`](/commands/network/ping) tells you whether the path to a destination is healthy overall. It doesn't tell you *where* a problem is if it isn't — a slow or lossy connection could be your own ISP, a transit provider three hops in, or the destination's own network, and `ping` alone can't distinguish between them. `mtr` (My TraceRoute) closes that gap: it combines a traceroute's hop-by-hop path discovery with ping's repeated latency/loss sampling, run continuously, at every hop along the way.
+
+## Why the output looks like a report, not a live dashboard
+
+Normally `mtr` runs as an interactive, continuously updating terminal UI — that's its whole reputation. Here it always runs in **report mode** (`-r`) instead: a single static snapshot after sending its packets, not a live curses screen. This isn't a limitation so much as a fit issue — a one-shot streamed command over a fixed timeout has no notion of an open-ended live display to keep updating, so the report is the equivalent output for a bounded, single request.
+
+## Reading the report, hop by hop
+
+Each row in the report is one hop along the path to the destination, with columns roughly like:
+
+```
+HOST                    Loss%   Snt   Last   Avg  Best  Wrst  StDev
+1. 192.0.2.1              0.0%    5    0.4    0.5   0.3   0.9   0.2
+2. 198.51.100.254         0.0%    5    3.1    3.4   2.9   4.0   0.4
+3. some-transit-hop       20.0%   5    ...
+4. 203.0.113.10 (dest)     0.0%    5   11.0   11.4  10.8  12.1   0.5
+```
+
+`Loss%` and `Avg` at the **final row** — the actual destination — are what answer "is the connection to this host healthy," the same question `ping` answers. The rows above it are what `mtr` adds: a look at every hop the path passes through on the way there, each with its own loss and latency figures.
+
+## The single most important thing to know before reading loss numbers
+
+**Loss shown at an intermediate hop that does not carry through to the destination is very often meaningless.** Many routers deliberately deprioritize or rate-limit the ICMP/UDP probes `mtr` uses to measure *them specifically* — as a matter of policy, to protect their own control-plane CPU from being burdened by every traceroute that happens to pass through — while forwarding actual traffic through them perfectly normally. Seeing `20% Loss` at hop 3 with `0% Loss` at every hop after it, including the destination, is almost always exactly this: hop 3 doesn't like answering probes about itself, but everything it forwards downstream arrives fine.
+
+The pattern that actually indicates a real problem is loss that **appears at one hop and then persists at every hop after it, all the way to the destination**. That's the signature of packets genuinely failing to get past that point — the router shows loss because it's really dropping (or unable to forward) traffic, not just declining to prioritize answering about itself.
+
+## The path shown is only one direction
+
+Every hop `mtr` reports is on the **forward path** — from where the command runs out to the destination. The reply traffic coming back can take a completely different route through the internet's routing topology, and `mtr` has no way to show that return path at all, only measure the round-trip time it produces. This matters when a hop's numbers look strange in a way that doesn't make sense for the forward direction — asymmetric routing is common on the internet and isn't itself a fault, but it's a real reason two people running `mtr` from different networks to the same destination can see genuinely different-looking reports, both accurately describing their own forward path.
+
+## `-4` / `-6`: choosing an IP version explicitly
+
+When a host has both an IPv4 and IPv6 address, `mtr` picks one automatically by default. Forcing it with `-4` or `-6` matters when you specifically suspect the problem is version-specific — IPv6 paths sometimes route completely differently (different transit providers, different peering) than IPv4 paths to the same destination, so a clean IPv4 `mtr` and a lossy IPv6 `mtr` to the same host is itself a useful, specific finding.
+
+## Why the packet count is capped
+
+`-c` sets how many probes are sent per hop for the statistics in each row, capped at 10 here (default 5) rather than left to run indefinitely the way interactive `mtr` normally would. Ten samples per hop is already enough to tell a one-off blip apart from consistent loss at that hop — the number of samples matters far less than whether the loss pattern from the resulting report continues through to the destination or stops partway.
+
+## A couple of real scenarios
+
+**"The site is slow for us, but fine for everyone else."** [`ping`](/commands/network/ping) first to confirm loss/latency actually looks different from what's expected, then `mtr` against the same host — if the loss/latency jump happens at a specific hop early in the path (often within your own ISP or its immediate upstream), that's a strong, specific data point to hand to your ISP rather than a vague "the internet feels slow" report.
+
+**"Is this our network, the transit provider, or their server?"** Run `mtr` and look at exactly where in the hop list the numbers degrade and stay degraded through to the destination. Early hops pointing at your own network, middle hops pointing at a transit/backbone provider, and loss only at the very last hop pointing at the destination's own network are three different problems with three different people to contact.
+
+[Try it in the terminal](/tools#mtr) — run it against a host you already `ping`ed and compare: the destination row should roughly match what `ping` showed on its own.

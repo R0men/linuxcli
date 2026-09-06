@@ -1,0 +1,66 @@
+export const metadata = {
+  title: 'ping command guide: reading latency, packet loss and TTL correctly',
+  description:
+    'What ping actually measures, what counts as normal round-trip time, why packet loss matters more than the number itself, and why "ping doesn\'t respond" isn\'t proof a host is down.',
+};
+
+export const commandMeta = {
+  module: 'network',
+  moduleLabel: 'Network',
+  command: 'ping',
+  toolId: 'ping',
+  summary: 'Send ICMP echo requests to measure round-trip time and packet loss to a host.',
+};
+
+# ping: the first thing to run, and the most commonly misread
+
+`ping` is almost always the first command anyone runs when something feels wrong on the network, and it's also one of the most commonly misinterpreted — mostly because a single missing response gets read as "the server is down" when it usually isn't. Understanding what `ping` actually measures, and its one real blind spot, makes it far more useful than treating it as a plain up/down check.
+
+## What each line means
+
+`ping example.com` sends a small ICMP echo request and waits for an echo reply, once per second by default, printing one line per response:
+
+```
+64 bytes from 93.184.216.34: icmp_seq=1 ttl=56 time=11.2 ms
+```
+
+- **`icmp_seq`** — a sequence number, so you can spot exactly which request in the run went unanswered if one does.
+- **`ttl`** — time-to-live: the number of router hops a packet is allowed before being discarded, decremented by one at each hop. This indirectly tells you roughly how far away the host is and hints at its operating system, because common OSes start `ttl` at a known default (64 is typical for Linux, 128 for Windows, 255 for many network appliances) and you're seeing it after it's been decremented once per hop along the way.
+- **`time`** — the round-trip time in milliseconds: how long the request took to reach the host and the reply to come back, combined.
+
+At the end of the run, a summary line gives the aggregate: packets transmitted, packets received, percentage lost, and the round-trip time's min/avg/max.
+
+## What counts as normal
+
+Round-trip time depends entirely on physical distance and the number of hops in between, so there's no single "good" number — but rough bands are worth knowing:
+
+- **Under ~10ms** — same city or same ISP's network.
+- **~10–40ms** — same country, typical broadband to a well-connected server.
+- **~80–150ms** — crossing an ocean (e.g. Europe to US East Coast, or US to East Asia).
+- **200ms+** — either a genuinely long physical path, or something adding real overhead (satellite links, an overloaded or congested hop, a route that's taking a needlessly indirect path).
+
+The number in isolation matters less than whether it's consistent. A steady 90ms is a healthy transatlantic connection; a reading that jumps between 20ms and 300ms on the same run (high jitter) usually points at congestion somewhere on the path, and is worth following up with [`mtr`](/commands/network/mtr) to see which specific hop is responsible, rather than reading anything into the average alone.
+
+## Packet loss: the number that actually matters more than latency
+
+`0%` packet loss with a consistent time is the "everything's fine" case. A single dropped packet out of four or five isn't automatically alarming — one transient blip, or a router along the path that deliberately deprioritizes ICMP under light load, can cause an isolated miss without indicating a real problem. What's worth acting on is *repeatable, sustained* loss — running `ping` again a few times and consistently seeing 20%+ loss means packets are actually being dropped somewhere real, not just deprioritized once.
+
+## The one thing `ping` cannot tell you
+
+This is the mistake worth avoiding: **no response from `ping` is not proof a host is down.** ICMP is frequently rate-limited, deprioritized, or blocked outright by firewalls and cloud providers — specifically *because* it's such a common target for abuse (ICMP floods) and reconnaissance (network sweeps). A server can refuse every `ping` while its actual services — HTTP, HTTPS, SSH, whatever it's actually meant to serve — work completely normally. Before concluding a host is unreachable from a failed `ping`, check the actual service directly: [`curl`](/commands/web/curl) for a web server, [`nc`](/commands/network/nc) for a specific port. `ping` measures network-layer reachability of ICMP specifically, not "is this server working."
+
+## Why only up to 5 packets here
+
+The `-c` flag controls how many echo requests are sent, capped at 5 here (default 4) — enough to distinguish a one-off blip from real, repeated loss, without turning a single command into an open-ended, continuously running stream (real `ping` with no count limit runs until interrupted, which doesn't fit a tool built around a bounded request and a fixed timeout). For anything beyond a handful of packets' worth of signal, the aggregate percentage across even 4–5 requests is normally more than enough to tell healthy from not.
+
+## `ping` vs `mtr`
+
+They answer the same underlying question at different resolutions. `ping` tells you *whether* the path to a destination is healthy — reachable, with what latency, and how much loss. [`mtr`](/commands/network/mtr) tells you *where along the path* a problem is, by combining ping-style measurements with a hop-by-hop traceroute. Run `ping` first; if it shows loss or unusually high latency, `mtr` against the same host is the natural next step to localize it.
+
+## A couple of real scenarios
+
+**"The site feels slow."** `ping` the domain first — if round-trip time and loss both look normal, the slowness is very likely above the network layer (server processing time, a slow database query, large page assets) rather than a connectivity problem, and you've just ruled out an entire category of cause in one command.
+
+**"I can't ping our own server, is it down?"** Don't stop there — [`curl -I`](/commands/web/curl) the actual site or [`nc -zv`](/commands/network/nc) the port the service listens on. Plenty of production servers intentionally drop ICMP while serving traffic completely normally; treating a blocked `ping` as an outage is one of the most common false alarms in basic troubleshooting.
+
+[Run it yourself](/tools#ping) against any host — five packets is usually enough to tell you whether the path is healthy.

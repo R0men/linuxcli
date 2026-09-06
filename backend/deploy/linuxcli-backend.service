@@ -1,0 +1,61 @@
+[Unit]
+Description=LinuxCLI disposable sandbox backend
+# mongod.service тут навмисно немає: за замовчуванням MongoDB — Atlas
+# (SETUP.md §4, mongodb+srv://), не self-hosted юніт на цьому хості.
+# Посилання на неіснуючий юніт у After= валить dependency job навіть
+# без Requires= на нього. Якщо обрано self-hosted Mongo (SETUP.md §4,
+# Варіант B) — додай сюди `mongod.service` вручну.
+After=network.target docker.service redis-server.service sandbox-network.service
+Requires=docker.service sandbox-network.service
+
+[Service]
+Type=simple
+User=linuxcli
+WorkingDirectory=/opt/linuxcli-backend
+EnvironmentFile=/opt/linuxcli-backend/.env
+ExecStart=/usr/bin/node src/index.js
+Restart=on-failure
+RestartSec=2
+
+# Хардинг (13-08-2026) — раніше тут був лише NoNewPrivileges=true,
+# тоді як самі sandbox-контейнери (containerConfig.js) захищені значно
+# ретельніше за сам backend-процес, що ними керує
+# (docs/architecture/README.md, наскрізна проблема). Процес нічого не
+# пише на локальний диск (audit — у MongoDB) і не потребує жодних
+# Linux capabilities — тільки читає/пише unix-сокет Docker daemon
+# (група docker) і мережу (Mongo/Redis/Turnstile/WS).
+NoNewPrivileges=true
+CapabilityBoundingSet=
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectKernelLogs=true
+ProtectControlGroups=true
+ProtectClock=true
+ProtectHostname=true
+ProtectProc=invisible
+RestrictSUIDSGID=true
+RestrictNamespaces=true
+RestrictRealtime=true
+LockPersonality=true
+RemoveIPC=true
+SystemCallFilter=@system-service
+SystemCallErrorNumber=EPERM
+# Захисна межа на памʼять самого Node-процесу (не sandbox-контейнерів —
+# ті обмежені окремо, containerConfig.js). Підбирай разом із
+# SETUP.md профілем хоста (2GB-профіль лишає менше запасу).
+MemoryMax=768M
+
+# ProtectSystem=strict робить / read-only, крім /dev,/proc,/sys — це НЕ
+# заважає підключенню до вже існуючого /var/run/docker.sock (connect()
+# на unix-сокет не вимагає прав на запис у сам mount), але перевір це
+# на цільовому Linux-хості (docs/VERIFY.md). Якщо підключення до Docker
+# все ж провалиться через це — розкоментуй рядок нижче замість
+# послаблення ProtectSystem=strict:
+# ReadWritePaths=/var/run/docker.sock
+
+[Install]
+WantedBy=multi-user.target

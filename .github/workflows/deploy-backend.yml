@@ -1,0 +1,42 @@
+name: Deploy backend
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'backend/**'
+      - '.github/workflows/deploy-backend.yml'
+  workflow_dispatch: {}
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Set up SSH
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.DEPLOY_SSH_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -H "${{ secrets.DEPLOY_HOST }}" >> ~/.ssh/known_hosts
+
+      - name: Deploy over SSH
+        run: |
+          ssh -i ~/.ssh/deploy_key -o IdentitiesOnly=yes \
+            "${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}" '
+            set -euo pipefail
+            cd /opt/linuxcli/backend
+
+            git fetch origin main
+            git reset --hard origin/main
+
+            npm ci --omit=dev
+
+            docker build -f docker/sandbox.Dockerfile -t linuxcli-sandbox:latest .
+
+            sudo systemctl daemon-reload
+            sudo systemctl restart sandbox-network.service
+            sudo systemctl restart linuxcli-backend.service
+
+            sleep 2
+            systemctl is-active linuxcli-backend.service
+          '

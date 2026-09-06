@@ -1,0 +1,63 @@
+export const metadata = {
+  title: 'Server slow or unreachable? Isolate where the problem actually is',
+  description:
+    'A working checklist for "the server feels slow" or "I can\'t reach it" — dig, ping, mtr and nc run in order to tell a DNS problem, a network path problem, and an application problem apart.',
+};
+
+export const commandMeta = {
+  module: 'troubleshooting',
+  moduleLabel: 'Troubleshooting Guides',
+  command: 'slow-or-unreachable-server',
+  label: 'Slow or unreachable server',
+  summary: 'dig, ping, mtr and nc run in order to tell a DNS, network-path, or application-layer problem apart.',
+};
+
+# Server is slow or unreachable: isolating where the problem is
+
+"The server feels slow" and "I can't reach the server at all" are different problems, but they start with the same first question: is this a network problem at all, or is the network fine and something above it (the application, a database query, a specific port) is the actual cause? The commands below narrow that down in order, from "does the name even resolve" through "is any of this a network problem at all."
+
+## Step 1: does the name resolve to what you expect? — `dig`
+
+```
+dig example.com A +short
+```
+
+If this comes back empty or with an unexpected IP, stop here — you're not even reaching the server you think you are, and nothing past this point will tell you anything useful about it. See the [`dig` guide](/commands/dns/dig) for querying a specific resolver if you suspect the issue is DNS propagation rather than a real misconfiguration.
+
+## Step 2: is the host reachable at all? — `ping`
+
+```
+ping -c 4 example.com
+```
+
+`0%` loss with consistent latency means the network path is healthy — if something still feels slow, it's very likely above the network layer entirely (application processing time, a slow database query, large page assets), not a connectivity problem, and you can stop looking here. Sustained loss (repeatable across a few runs, not a single blip) or unusually high or wildly inconsistent latency means there's a real network-layer issue worth localizing with Step 3.
+
+**Important caveat, covered fully in the [`ping` guide](/commands/network/ping):** no response to `ping` is *not* proof the server is down. ICMP is commonly rate-limited or blocked by firewalls specifically because it's a common target for abuse — a server can refuse every `ping` while its actual services work completely normally. If `ping` shows no response, go straight to Step 4 with the port the service you actually care about is listening on, rather than concluding the server is unreachable.
+
+## Step 3: where along the path is the problem? — `mtr`
+
+```
+mtr -r -c 5 example.com
+```
+
+Run this when `ping` showed loss or high latency and you need to know *where* it's happening — your own network, a transit provider somewhere in the middle, or the destination's own network. The rule that matters most when reading the report, detailed in the [`mtr` guide](/commands/network/mtr): loss at one hop that doesn't carry through to the destination is usually meaningless — many routers deprioritize replying to the probes `mtr` uses without actually dropping real traffic. What indicates a genuine problem is loss that starts at a hop and **persists at every hop after it, all the way to the destination**. Early persistent loss points at your own network or its immediate upstream; loss only at the very last hop points at the destination's network specifically — two different problems with two different people to contact about them.
+
+## Step 4: is the specific service actually listening? — `nc`
+
+```
+nc -zv example.com 443
+```
+
+(Substitute whatever port the service you care about actually uses.) This is the step that separates "the network is fine, the service isn't" from an actual connectivity problem, and it's the right next step whether `ping` succeeded (network's fine, is the service also fine?) or failed outright (is that because of ICMP filtering, or because the whole host is genuinely down?). A refused connection means the host is reachable but nothing's listening on that port — the service itself, not the network. A hang until timeout looks like a network problem again, but scoped specifically to that port rather than the host in general — worth comparing against whether `ping` to the same host succeeded, since a host can filter one and not the other. Full detail on telling these apart is in the [`nc` guide](/commands/network/nc).
+
+## Putting the four together
+
+The order matters because each step answers a narrower question than the one before it: does the name resolve → is the host reachable at all → if not, where specifically along the path → is the specific service actually up. Skipping straight to `mtr` without first confirming `dig` and `ping` even make sense to run wastes a report on a problem that might not be a network-path issue at all; skipping `nc` and assuming a `ping` failure means the whole server is down produces false alarms constantly, since ICMP filtering is common and unrelated to whether the actual service works.
+
+## A couple of real scenarios
+
+**"The site is slow for everyone in one office, fine everywhere else."** `ping` and `mtr` from a machine in that office (or ask someone there to run them) against the same destination — a location-specific ISP or transit problem shows up clearly as loss or high latency starting early in that specific path, something you'd never see testing from anywhere else.
+
+**"Monitoring says the server is down, but I can log in to it fine."** Almost always a Step 4 situation, not Step 2 — the host itself is up (hence you can log in over SSH, a completely different port), but whatever monitoring is checking — usually HTTP/HTTPS — has its own specific problem. `nc -zv` the exact port monitoring alerts on, not just the host in general.
+
+Work through the four steps against the host that's actually giving you trouble — [open the terminal](/tools) — the first step that comes back wrong is almost always where the real problem lives, and everything after it in the list would have failed too, for the same underlying reason.
